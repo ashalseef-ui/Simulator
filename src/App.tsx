@@ -31,6 +31,8 @@ import { NocIncidentModal } from './components/NocIncidentModal';
 import { SocraticMentorModal } from './components/SocraticMentorModal';
 import { AboutLegalModal } from './components/AboutLegalModal';
 import { TextToTopologyModal } from './components/TextToTopologyModal';
+import { MascotGuideModal } from './components/MascotGuideModal';
+import { ChaosBattleModal } from './components/ChaosBattleModal';
 import { IncidentScenario } from './data/incidentScenarios';
 import { X } from 'lucide-react';
 
@@ -104,6 +106,8 @@ export default function App() {
   const [showSocraticModal, setShowSocraticModal] = useState<boolean>(false);
   const [showLegalModal, setShowLegalModal] = useState<boolean>(false);
   const [showTextToTopologyModal, setShowTextToTopologyModal] = useState<boolean>(false);
+  const [showMascotModal, setShowMascotModal] = useState<boolean>(true); // Open mascot tutorial on startup!
+  const [showChaosModal, setShowChaosModal] = useState<boolean>(false);
 
   // Active Incident Scenario
   const [activeIncident, setActiveIncident] = useState<IncidentScenario | null>(null);
@@ -161,6 +165,17 @@ export default function App() {
       setLinks(combinedLinks);
       pushHistory(combinedDevs, combinedLinks);
     }
+  };
+
+  const handleDeployChaosChallenge = (newDevices: Device[], newLinks: Link[], _title: string) => {
+    setDevices(newDevices);
+    setLinks(newLinks);
+    setDeviceWindows({});
+    setSimulationSteps([]);
+    setActiveIncident(null);
+    setSelectedDeviceId(null);
+    setSelectedLinkId(null);
+    pushHistory(newDevices, newLinks);
   };
 
   // STP Engine recalculation
@@ -593,6 +608,8 @@ export default function App() {
         simulationStepCount={simulationSteps.length}
         activeIncidentTitle={activeIncident?.title}
         onOpenLegal={() => setShowLegalModal(true)}
+        onOpenMascot={() => setShowMascotModal(true)}
+        onOpenChaos={() => setShowChaosModal(true)}
       />
 
       {/* Main Workspace: Palette Sidebar + Infinite Canvas */}
@@ -799,6 +816,23 @@ export default function App() {
         isOpen={showTextToTopologyModal}
         onClose={() => setShowTextToTopologyModal(false)}
         onDeployTopology={handleDeployGeneratedTopology}
+      />
+
+      {/* Packet Pete Tutorial Mascot Modal */}
+      <MascotGuideModal
+        isOpen={showMascotModal}
+        onClose={() => setShowMascotModal(false)}
+        onOpenTextToTopology={() => setShowTextToTopologyModal(true)}
+        onOpenLabs={() => setShowLabsModal(true)}
+        onOpenSocratic={() => setShowSocraticModal(true)}
+        onOpenNoc={() => setShowNocModal(true)}
+      />
+
+      {/* Chaos Monkey Battle Mode Modal */}
+      <ChaosBattleModal
+        isOpen={showChaosModal}
+        onClose={() => setShowChaosModal(false)}
+        onDeployChallenge={handleDeployChaosChallenge}
       />
 
       {errorMessage && (

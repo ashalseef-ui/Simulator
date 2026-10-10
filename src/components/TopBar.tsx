@@ -14,6 +14,8 @@ import {
   ChevronDown,
   Scale,
   Wand2,
+  Bot,
+  Flame,
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -39,6 +41,8 @@ interface TopBarProps {
   activeLabScore?: number;
   onToggleLabHud?: () => void;
   onOpenLegal?: () => void;
+  onOpenMascot?: () => void;
+  onOpenChaos?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -64,6 +68,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   activeLabScore = 0,
   onToggleLabHud,
   onOpenLegal,
+  onOpenMascot,
+  onOpenChaos,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
@@ -259,6 +265,28 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Sparkles className="w-3.5 h-3.5 text-sky-400" />
           <span className="hidden xl:inline">Diagram Studio</span>
         </button>
+
+        {onOpenMascot && (
+          <button
+            onClick={onOpenMascot}
+            className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Meet Packet Pete - Your Study Mascot"
+          >
+            <Bot className="w-3.5 h-3.5 text-sky-400 animate-bounce" />
+            <span className="hidden md:inline">Packet Pete</span>
+          </button>
+        )}
+
+        {onOpenChaos && (
+          <button
+            onClick={onOpenChaos}
+            className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Chaos Monkey Battle Mode - Timed CCNA Fault Troubleshooting Games"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span className="hidden xl:inline">Chaos Battle</span>
+          </button>
+        )}
       </div>
 
       {/* Window Manager Layout Actions */}
