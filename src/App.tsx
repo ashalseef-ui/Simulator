@@ -122,16 +122,6 @@ export default function App() {
     return calculateStp(devices, links, 1);
   }, [devices, links]);
 
-  // Asynchronous OSPF/EIGRP Routing Daemon Web Worker
-  useEffect(() => {
-    const worker = new Worker(new URL('./engine/routingWorker.ts', import.meta.url), { type: 'module' });
-    worker.postMessage({ type: 'START_ROUTING_DAEMON', payload: { deviceCount: devices.length, linkCount: links.length } });
-    worker.onmessage = (_e) => {
-      // Routing daemon background tick
-    };
-    return () => worker.terminate();
-  }, []);
-
   // Simulation step playback timer
   useEffect(() => {
     let timer: any;
@@ -646,6 +636,7 @@ export default function App() {
               key={winState.id}
               device={dev}
               allDevices={devices}
+              allLinks={links}
               windowState={winState}
               onUpdateWindowState={handleUpdateWindowState}
               onClose={handleCloseWindow}
