@@ -1,6 +1,8 @@
-import { Device, DeviceConfig } from '../types/network';
-import { isValidIp, maskToCidr } from '../utils/ipUtils';
+import { Device, DeviceConfig, Link } from '../types/network';
+import { isValidIp, maskToCidr, getNetworkAddress } from '../utils/ipUtils';
 import { calculateStp } from './stpEngine';
+import { computeOspf, formatNeighborTable, formatOspfRoute, OspfRoute } from './ospfEngine';
+import { simulatePing } from './simulationEngine';
 
 export type CliMode =
   | 'user'
@@ -142,7 +144,8 @@ export function executeCliCommand(
   device: Device,
   allDevices: Device[],
   session: CliSession,
-  onConfigChange: (updatedConfig: DeviceConfig) => void
+  onConfigChange: (updatedConfig: DeviceConfig) => void,
+  allLinks: Link[] = []
 ): { output: string; newSession: CliSession } {
   const line = rawCommand.trim();
   const newSession: CliSession = { ...session };
@@ -209,10 +212,10 @@ export function executeCliCommand(
     if (cmd === 'ping') {
       const target = tokens[1];
       if (!target) return { output: '% Incomplete command.', newSession };
-      return { output: simulateCliPing(target, device, allDevices), newSession };
+      return { output: simulateCliPing(target, device, allDevices, allLinks), newSession };
     }
     if (cmd === 'show' || cmd === 'sh') {
-      return handleShowCommands(tokens.slice(1), device, allDevices, newSession);
+      return handleShowCommands(tokens.slice(1), device, allDevices, newSession, allLinks);
     }
     return { output: `% Invalid input detected at '^' marker.`, newSession };
   }
@@ -368,15 +371,15 @@ export function executeCliCommand(
       if (!target) return { output: '% Incomplete command. Syntax: ping <ip_address> [repeat <count>]', newSession };
       const repeatIdx = tokens.indexOf('repeat');
       const count = repeatIdx !== -1 ? parseInt(tokens[repeatIdx + 1], 10) || 5 : 5;
-      return { output: simulateCliPing(target, device, allDevices, newSession.debugFlags?.icmp, count), newSession };
+      return { output: simulateCliPing(target, device, allDevices, allLinks, newSession.debugFlags?.icmp, count), newSession };
     }
     if (cmd === 'traceroute' || cmd === 'trace') {
       const target = tokens[1];
       if (!target) return { output: '% Incomplete command. Syntax: traceroute <ip_address>', newSession };
-      return { output: simulateCliTraceroute(target, device, allDevices), newSession };
+      return { output: simulateCliTraceroute(target, device, allDevices, allLinks), newSession };
     }
     if (cmd === 'show' || cmd === 'sh') {
-      return handleShowCommands(tokens.slice(1), device, allDevices, newSession);
+      return handleShowCommands(tokens.slice(1), device, allDevices, newSession, allLinks);
     }
     return { output: `% Invalid command: "${line}"`, newSession };
   }
@@ -1901,7 +1904,8 @@ function handleShowCommands(
   tokens: string[],
   device: Device,
   allDevices: Device[],
-  session: CliSession
+  session: CliSession,
+  allLinks: Link[] = []
 ): { output: string; newSession: CliSession } {
   const sub = tokens.join(' ').toLowerCase();
 
@@ -1924,7 +1928,8 @@ function handleShowCommands(
 
   // show ip route
   if (sub.startsWith('ip ro') || sub === 'ip route') {
-    return { output: generateRoutingTableOutput(device), newSession: session };
+    const ospfRoutes = computeOspf(allDevices, allLinks, calculateStp(allDevices, allLinks, 1)).routes[device.id] || [];
+    return { output: generateRoutingTableOutput(device, ospfRoutes), newSession: session };
   }
 
   // show vlan brief / show vlan id / show vlan summary / show vlan
@@ -2038,7 +2043,7 @@ function handleShowCommands(
 
   // show spanning-tree
   if (sub.startsWith('span') || sub.startsWith('spanning-tree')) {
-    const stp = calculateStp(allDevices, [], 1);
+    const stp = calculateStp(allDevices, allLinks, 1);
     const prio = device.config.spanningTreePriority ?? 32768;
     const isRoot = stp.rootBridgeId === device.id;
     let out = `VLAN0001\n  Spanning tree enabled protocol ieee\n`;
@@ -2175,22 +2180,32 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
 
-  // show ip ospf neighbor
-  if (sub.startsWith('ip ospf nei') || sub === 'ip ospf neighbor') {
-    let out = 'Neighbor ID     Pri   State           Dead Time   Address         Interface\n';
-    out += '10.0.0.2          1   FULL/DR         00:00:34    192.168.1.2     GigabitEthernet0/0\n';
-    out += '10.0.0.3          1   FULL/BDR        00:00:36    192.168.1.3     GigabitEthernet0/1\n';
-    return { output: out.trimEnd(), newSession: session };
-  }
-
-  // show ip ospf interface
-  if (sub.startsWith('ip ospf int') || sub === 'ip ospf interface') {
-    let out = 'GigabitEthernet0/0 is up, line protocol is up\n';
-    out += '  Internet Address 192.168.1.1/24, Area 0\n';
-    out += '  Process ID 1, Router ID 192.168.1.1, Network Type BROADCAST, Cost: 1\n';
-    out += '  Transmit Delay is 1 sec, State DR, Priority 1\n';
-    out += '  Designated Router (ID) 192.168.1.1, Interface address 192.168.1.1\n';
-    out += '  Timer intervals configured, Hello 10, Dead 40, Wait 40, Retransmit 5\n';
+  // show ip ospf neighbor / interface (computed from real adjacency state)
+  if (sub.startsWith('ip ospf nei') || sub.startsWith('ip ospf int')) {
+    if (!device.config.ospf) return { output: '', newSession: session };
+    const ospf = computeOspf(allDevices, allLinks, calculateStp(allDevices, allLinks, 1));
+    if (sub.startsWith('ip ospf nei')) {
+      const list = ospf.neighbors[device.id] || [];
+      return { output: list.length ? formatNeighborTable(list) : '', newSession: session };
+    }
+    const infos = ospf.interfaces[device.id] || [];
+    let out = '';
+    for (const i of infos) {
+      const cidr = maskToCidr(i.mask);
+      out += `${i.name} is ${i.state === 'DOWN' ? 'down' : 'up'}, line protocol is ${i.state === 'DOWN' ? 'down' : 'up'}\n`;
+      out += `  Internet Address ${i.ip}/${cidr}, Area ${i.area}\n`;
+      out += `  Process ID ${device.config.ospf.processId}, Router ID ${ospf.routerIds[device.id]}, Network Type ${i.state === 'LOOPBACK' ? 'LOOPBACK' : 'BROADCAST'}, Cost: ${i.cost}\n`;
+      if (i.passive) {
+        out += `  No Hellos (Passive interface)\n`;
+      } else if (i.state !== 'LOOPBACK') {
+        out += `  Transmit Delay is 1 sec, State ${i.state}, Priority ${i.priority}\n`;
+        if (i.drId) out += `  Designated Router (ID) ${i.drId}\n`;
+        if (i.bdrId) out += `  Backup Designated Router (ID) ${i.bdrId}\n`;
+        out += `  Timer intervals configured, Hello ${i.hello}, Dead ${i.dead}, Wait ${i.dead}, Retransmit 5\n`;
+        out += `  Neighbor Count is ${i.neighborCount}, Adjacent neighbor count is ${i.neighborCount}\n`;
+      }
+      out += '\n';
+    }
     return { output: out.trimEnd(), newSession: session };
   }
 
@@ -2954,54 +2969,30 @@ export function generateRunningConfig(device: Device): string {
   return lines.join('\n');
 }
 
-function generateRoutingTableOutput(device: Device): string {
+function generateRoutingTableOutput(device: Device, ospfRoutes: OspfRoute[] = []): string {
   let out = 'Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP\n';
   out += '       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area\n\n';
-  out += 'Gateway of last resort is not set\n\n';
 
-  // Connected interfaces
+  const defaultRoute = (device.config.routes || []).find((r) => r.network === '0.0.0.0' && (r.mask === '0.0.0.0' || r.mask === '0'));
+  out += defaultRoute
+    ? `Gateway of last resort is ${defaultRoute.nextHop} to network 0.0.0.0\n\n`
+    : 'Gateway of last resort is not set\n\n';
+
   for (const [name, iface] of Object.entries(device.config.interfaces)) {
     if (iface.ip && iface.mask && iface.status === 'up') {
       const cidr = maskToCidr(iface.mask);
-      out += `C     ${iface.ip}/${cidr} is directly connected, ${name}\n`;
+      out += `C        ${getNetworkAddress(iface.ip, iface.mask)}/${cidr} is directly connected, ${name}\n`;
+      out += `L        ${iface.ip}/32 is directly connected, ${name}\n`;
     }
   }
 
-  // Static routes
-  if (device.config.routes) {
-    device.config.routes.forEach((r) => {
-      const cidr = maskToCidr(r.mask);
-      out += `S     ${r.network}/${cidr} [1/0] via ${r.nextHop}\n`;
-    });
+  for (const r of device.config.routes || []) {
+    const cidr = r.mask === '0' ? 0 : maskToCidr(r.mask);
+    const star = r === defaultRoute ? '*' : ' ';
+    out += `S${star}       ${r.network}/${cidr} [${r.distance ?? 1}/0] via ${r.nextHop}\n`;
   }
 
-  // OSPF routes
-  if (device.config.ospf) {
-    device.config.ospf.networks.forEach((n) => {
-      out += `O     ${n.network}/24 [110/2] via 10.0.0.1, Area ${n.area}\n`;
-    });
-  }
-
-  // EIGRP routes
-  if (device.config.eigrp) {
-    device.config.eigrp.networks.forEach((n) => {
-      out += `D     ${n.network}/24 [90/307200] via 10.0.0.2\n`;
-    });
-  }
-
-  // RIP routes
-  if (device.config.rip) {
-    device.config.rip.networks.forEach((net) => {
-      out += `R     ${net}/24 [120/2] via 10.0.0.3\n`;
-    });
-  }
-
-  // BGP routes
-  if (device.config.bgp) {
-    device.config.bgp.networks.forEach((b) => {
-      out += `B     ${b.network}/24 [20/0] via ${device.config.bgp?.neighbors[0]?.ip || '10.0.0.4'}\n`;
-    });
-  }
+  for (const r of ospfRoutes) out += formatOspfRoute(r) + '\n';
 
   return out.trimEnd();
 }
@@ -3045,77 +3036,90 @@ function resolveHostOrDomain(target: string, device: Device, allDevices: Device[
   return { ip: target };
 }
 
+function resolveTarget(
+  target: string,
+  device: Device,
+  allDevices: Device[]
+): { ip?: string; log: string; error?: string } {
+  if (isValidIp(target)) return { ip: target, log: '' };
+  if (device.config.domainLookupEnabled === false) {
+    return { log: '', error: '% Unrecognized host or address, or protocol not running.' };
+  }
+  const res = resolveHostOrDomain(target, device, allDevices);
+  if (res.resolvedVia) return { ip: res.ip, log: `Translating "${target}"...${res.resolvedVia} [OK]\n\n` };
+  return {
+    log: '',
+    error: `Translating "${target}"...domain server (${device.config.dnsServer || '255.255.255.255'})\n% Unrecognized host or address, or protocol not running.`,
+  };
+}
+
 function simulateCliPing(
   target: string,
   device: Device,
   allDevices: Device[],
+  allLinks: Link[],
   debugIcmp?: boolean,
   repeat: number = 5
 ): string {
-  let resolvedIp = target;
-  let translationLog = '';
+  const resolved = resolveTarget(target, device, allDevices);
+  if (!resolved.ip) return resolved.error!;
+  const resolvedIp = resolved.ip;
 
-  if (!isValidIp(target)) {
-    if (device.config.domainLookupEnabled === false) {
-      return `% Unrecognized host or address, or protocol not running.`;
-    }
-    const res = resolveHostOrDomain(target, device, allDevices);
-    if (res.resolvedVia) {
-      translationLog = `Translating "${target}"...${res.resolvedVia} [OK]\n\n`;
-      resolvedIp = res.ip;
-    } else {
-      return `Translating "${target}"...domain server (${device.config.dnsServer || '255.255.255.255'})\n% Unrecognized host or address, or protocol not running.`;
-    }
-  }
+  // Reachability is decided by the same engine that drives the packet animation:
+  // L2/VLAN/STP path, routing tables on every hop, ACLs and the return path.
+  const result = simulatePing(device.id, resolvedIp, allDevices, allLinks);
+  const found = result.success;
+  const srcIp =
+    Object.values(device.config.interfaces).find((i) => i.ip && i.status === 'up')?.ip || '0.0.0.0';
 
-  // Check if resolved IP exists on any device interface in the network topology
-  let found = false;
-  for (const d of allDevices) {
-    for (const iface of Object.values(d.config.interfaces)) {
-      if (iface.ip === resolvedIp && iface.status === 'up') {
-        found = true;
-        break;
-      }
-    }
-  }
-
-  let out = `${translationLog}Type escape sequence to abort.\nSending ${repeat}, 100-byte ICMP Echos to ${resolvedIp}, timeout is 2 seconds:\n`;
+  let out = `${resolved.log}Type escape sequence to abort.\nSending ${repeat}, 100-byte ICMP Echos to ${resolvedIp}, timeout is 2 seconds:\n`;
   if (debugIcmp) {
     for (let i = 1; i <= Math.min(repeat, 3); i++) {
-      if (found) {
-        out += `*Mar 1 00:04:12.${100 + i * 15}: ICMP: echo reply rcvd from ${resolvedIp}, src=${device.config.interfaces['Gi0/0']?.ip || '192.168.1.1'}, dst=${resolvedIp}, seq=${i}\n`;
-      } else {
-        out += `*Mar 1 00:04:12.${100 + i * 15}: ICMP: echo request sent to ${resolvedIp}, timeout expired\n`;
-      }
+      out += found
+        ? `*Mar 1 00:04:12.${100 + i * 15}: ICMP: echo reply rcvd, src=${resolvedIp}, dst=${srcIp}, seq=${i}\n`
+        : `*Mar 1 00:04:12.${100 + i * 15}: ICMP: echo request sent to ${resolvedIp}, timeout expired (${result.error || 'unreachable'})\n`;
     }
   }
 
   if (found) {
     out += `${'!'.repeat(repeat)}\nSuccess rate is 100 percent (${repeat}/${repeat}), round-trip min/avg/max = 1/2/4 ms`;
   } else {
-    out += `${'.'.repeat(repeat)}\nSuccess rate is 0 percent (0/${repeat})`;
+    // Real IOS prints U when an upstream router answers "destination unreachable", . on silence.
+    const unreachable = /no route/i.test(result.error || '');
+    out += `${(unreachable ? 'U' : '.').repeat(repeat)}\nSuccess rate is 0 percent (0/${repeat})`;
   }
   return out;
 }
 
-function simulateCliTraceroute(target: string, device: Device, allDevices: Device[]): string {
-  let resolvedIp = target;
-  let translationLog = '';
+function simulateCliTraceroute(target: string, device: Device, allDevices: Device[], allLinks: Link[]): string {
+  const resolved = resolveTarget(target, device, allDevices);
+  if (!resolved.ip) return resolved.error!;
+  const resolvedIp = resolved.ip;
 
-  if (!isValidIp(target)) {
-    const res = resolveHostOrDomain(target, device, allDevices);
-    if (res.resolvedVia) {
-      translationLog = `Translating "${target}"...${res.resolvedVia} [OK]\n\n`;
-      resolvedIp = res.ip;
-    } else {
-      return `Translating "${target}"...domain server (${device.config.dnsServer || '255.255.255.255'})\n% Unrecognized host or address, or protocol not running.`;
-    }
+  let out = `${resolved.log}Type escape sequence to abort.\nTracing the route to ${target} (${resolvedIp})\n\n`;
+  const result = simulatePing(device.id, resolvedIp, allDevices, allLinks);
+  const byId = new Map(allDevices.map((d) => [d.id, d]));
+
+  // Each L3 hop = the ingress interface address of every router on the forward path, then the destination.
+  const hops: string[] = [];
+  for (const st of result.steps) {
+    if (!st.stage.startsWith('ICMP Echo Request')) continue;
+    const to = byId.get(st.toDeviceId);
+    const ip = to?.config.interfaces[st.toPort]?.ip;
+    const routed = to && (to.type.startsWith('router') || to.type === 'firewall' || (to.type === 'l3switch' && to.config.ipRoutingEnabled));
+    if (ip && (routed || ip === resolvedIp)) hops.push(ip);
   }
+  const unique = hops.filter((ip, i) => hops.indexOf(ip) === i);
+  if (!unique.includes(resolvedIp)) unique.push(resolvedIp);
 
-  let out = `${translationLog}Type escape sequence to abort.\nTracing the route to ${target} (${resolvedIp})\n\n`;
-  out += `  1 192.168.1.1 2 msec 1 msec 1 msec\n`;
-  out += `  2 ${resolvedIp} 4 msec * 3 msec\n`;
-  return out;
+  if (!result.success) {
+    const reached = unique.filter((ip) => ip !== resolvedIp);
+    reached.forEach((ip, i) => (out += `  ${i + 1} ${ip} ${i + 1} msec ${i + 1} msec ${i + 1} msec\n`));
+    out += `  ${reached.length + 1} * * *\n  ${reached.length + 2} * * *`;
+    return out;
+  }
+  unique.forEach((ip, i) => (out += `  ${i + 1} ${ip} ${i + 1} msec ${i + 1} msec ${i + 2} msec\n`));
+  return out.trimEnd();
 }
 
 function getContextHelp(prefix: string, mode: CliMode, _device: Device): string {

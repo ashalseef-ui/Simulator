@@ -1,7 +1,7 @@
 import { Device, Link, StpPortInfo, StpTopologyState } from '../types/network';
 
 const isSwitchType = (type: string) =>
-  type === 'switch' || type === 'switch3560' || type === 'l3switch' || type === 'nexus9000';
+  type === 'switch' || type === 'switch2960_48' || type === 'switch3560' || type === 'switch3850' || type === 'switch9300' || type === 'l3switch' || type === 'nexus9000';
 
 export function calculateStp(devices: Device[], links: Link[], targetVlan: number = 1): StpTopologyState {
   const switchDevices = devices.filter((d) => isSwitchType(d.type));
@@ -63,6 +63,8 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
   // Calculate Shortest Path to Root Bridge using Dijkstra / BFS
   const rootCostToSwitch: Record<string, number> = {};
   const rootPortOnSwitch: Record<string, string> = {};
+  // 802.1D tie-breakers for equal-cost root paths: lowest sender bridge ID, then lowest sender port ID
+  const rootUpstream: Record<string, { bridge: string; port: string }> = {};
 
   switchDevices.forEach((sw) => {
     rootCostToSwitch[sw.id] = sw.id === rootSwitch.id ? 0 : Infinity;
@@ -89,23 +91,35 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     for (const link of switchLinks) {
       let neighborId: string | null = null;
       let neighborPort: string | null = null;
+      let senderPort = '';
 
       if (link.fromDevice === currentId) {
         neighborId = link.toDevice;
         neighborPort = link.toPort;
+        senderPort = link.fromPort;
       } else if (link.toDevice === currentId) {
         neighborId = link.fromDevice;
         neighborPort = link.fromPort;
+        senderPort = link.toPort;
       }
 
       if (neighborId && !visited.has(neighborId)) {
         const neighborDev = switchDevices.find((d) => d.id === neighborId)!;
+        const currentDev = switchDevices.find((d) => d.id === currentId)!;
         const linkCost = getPortCost(neighborDev, neighborPort!);
         const newCost = rootCostToSwitch[currentId] + linkCost;
+        const sender = { bridge: getSwitchBridgeId(currentDev).str, port: senderPort };
+        const prev = rootUpstream[neighborId];
 
-        if (newCost < rootCostToSwitch[neighborId]) {
+        const betterTie =
+          newCost === rootCostToSwitch[neighborId] &&
+          prev !== undefined &&
+          (sender.bridge < prev.bridge || (sender.bridge === prev.bridge && sender.port < prev.port));
+
+        if (newCost < rootCostToSwitch[neighborId] || betterTie) {
           rootCostToSwitch[neighborId] = newCost;
           rootPortOnSwitch[neighborId] = neighborPort!;
+          rootUpstream[neighborId] = sender;
         }
       }
     }
@@ -184,40 +198,24 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     }
   }
 
-  // Edge ports (connected to PCs, Routers, Servers) are always DESG / FWD
-  const nonSwitchLinks = links.filter((link) => {
+  // Edge ports (switch ports facing hosts/routers) are always DESG / FWD.
+  // Use the same switch predicate as the rest of the engine so 3560/3850/9300/Nexus are covered.
+  for (const link of links) {
     const devA = devices.find((d) => d.id === link.fromDevice);
     const devB = devices.find((d) => d.id === link.toDevice);
-    if (!devA || !devB) return false;
-    const isSwA = devA.type === 'switch' || devA.type === 'l3switch';
-    const isSwB = devB.type === 'switch' || devB.type === 'l3switch';
-    return (isSwA && !isSwB) || (!isSwA && isSwB);
-  });
-
-  nonSwitchLinks.forEach((link) => {
-    const devA = devices.find((d) => d.id === link.fromDevice);
-    if (devA && (devA.type === 'switch' || devA.type === 'l3switch')) {
-      const key = `${devA.id}:${link.fromPort}`;
-      portsState[key] = {
-        deviceId: devA.id,
-        port: link.fromPort,
-        role: 'DESG',
-        state: 'FWD',
-        cost: getPortCost(devA, link.fromPort),
-      };
-    }
-    const devB = devices.find((d) => d.id === link.toDevice);
-    if (devB && (devB.type === 'switch' || devB.type === 'l3switch')) {
-      const key = `${devB.id}:${link.toPort}`;
-      portsState[key] = {
-        deviceId: devB.id,
-        port: link.toPort,
-        role: 'DESG',
-        state: 'FWD',
-        cost: getPortCost(devB, link.toPort),
-      };
-    }
-  });
+    if (!devA || !devB) continue;
+    const aSw = isSwitchType(devA.type);
+    const bSw = isSwitchType(devB.type);
+    if (aSw === bSw) continue; // switch-switch handled above, host-host irrelevant
+    const [sw, port] = aSw ? [devA, link.fromPort] : [devB, link.toPort];
+    portsState[`${sw.id}:${port}`] = {
+      deviceId: sw.id,
+      port,
+      role: 'DESG',
+      state: 'FWD',
+      cost: getPortCost(sw, port),
+    };
+  }
 
   return {
     rootBridgeId: rootSwitch.id,

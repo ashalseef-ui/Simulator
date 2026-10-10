@@ -5,16 +5,30 @@ import {
   DeviceInterface,
   AccessList,
 } from '../types/network';
-import { areSameSubnet, getNetworkAddress, ipToInt } from '../utils/ipUtils';
+import { areSameSubnet, getNetworkAddress, ipToInt, maskToCidr } from '../utils/ipUtils';
 import { calculateStp } from './stpEngine';
+import { computeOspf, isOspfCapable, OspfRoute, OspfState, OSPF_AD } from './ospfEngine';
 
 interface RouteMatch {
   type: 'connected' | 'static' | 'ospf' | 'eigrp' | 'rip' | 'bgp' | 'default';
   outInterface: string;
   subInterface?: string;
   nextHopIp: string;
+  /** Administrative distance. */
   metric: number;
+  /** Prefix length; routers pick the longest prefix first, AD only breaks ties. */
+  prefixLen: number;
+  /** Protocol cost, used as the final tie-breaker. */
+  cost?: number;
 }
+
+const wildcardToPrefixLen = (wildcard: string): number => {
+  const mask = (~ipToInt(wildcard)) >>> 0;
+  let n = 0;
+  for (let i = 31; i >= 0 && (mask >>> i) & 1; i--) n++;
+  return n;
+};
+const safeCidr = (mask: string): number => (mask === '0' || mask === '0.0.0.0' ? 0 : maskToCidr(mask));
 
 // Helper to evaluate ACL against an ICMP/IP packet
 function checkAcl(
@@ -85,10 +99,12 @@ function checkAcl(
   return { permitted: false, matchedRule: 'Implicit Deny All' };
 }
 
-// Helper to look up best route on router or L3 switch
-function lookupRoute(
+// Helper to look up best route on router or L3 switch.
+// Order of selection follows real routers: longest prefix match, then lowest AD, then lowest cost.
+export function lookupRoute(
   dev: Device,
-  dstIp: string
+  dstIp: string,
+  ospfRoutes: OspfRoute[] = []
 ): RouteMatch | null {
   const candidates: RouteMatch[] = [];
 
@@ -102,117 +118,89 @@ function lookupRoute(
           subInterface: ifName.includes('.') ? ifName : undefined,
           nextHopIp: dstIp,
           metric: 0,
+          prefixLen: safeCidr(iface.mask),
         });
       }
     }
   }
 
   // 2. Static routes
-  if (dev.config.routes) {
-    for (const r of dev.config.routes) {
-      if (r.network === '0.0.0.0' && (r.mask === '0.0.0.0' || r.mask === '0')) {
-        candidates.push({
-          type: 'default',
-          outInterface: r.interface || '',
-          nextHopIp: r.nextHop,
-          metric: r.distance ?? 1,
-        });
-      } else if (areSameSubnet(r.network, dstIp, r.mask)) {
-        candidates.push({
-          type: 'static',
-          outInterface: r.interface || '',
-          nextHopIp: r.nextHop,
-          metric: r.distance ?? 1,
-        });
-      }
+  for (const r of dev.config.routes || []) {
+    if (safeCidr(r.mask) === 0 || areSameSubnet(r.network, dstIp, r.mask)) {
+      candidates.push({
+        type: safeCidr(r.mask) === 0 ? 'default' : 'static',
+        outInterface: r.interface || '',
+        nextHopIp: r.nextHop,
+        metric: r.distance ?? 1,
+        prefixLen: safeCidr(r.mask),
+      });
     }
   }
 
-  // 3. OSPF routes
-  if (dev.config.ospf && dev.config.ospf.networks) {
-    for (const net of dev.config.ospf.networks) {
-      const maskInt = (~ipToInt(net.wildcard)) >>> 0;
-      const netInt = ipToInt(net.network);
-      const dstInt = ipToInt(dstIp);
-      if ((dstInt & maskInt) === (netInt & maskInt)) {
-        candidates.push({
-          type: 'ospf',
-          outInterface: '',
-          nextHopIp: dstIp,
-          metric: 110,
-        });
-      }
+  // 3. OSPF routes: produced by the OSPF engine from real adjacencies + SPF
+  for (const r of ospfRoutes) {
+    if (areSameSubnet(r.network, dstIp, r.mask)) {
+      candidates.push({
+        type: 'ospf',
+        outInterface: r.outInterface,
+        nextHopIp: r.nextHopIp,
+        metric: OSPF_AD,
+        prefixLen: safeCidr(r.mask),
+        cost: r.cost,
+      });
     }
   }
 
-  // 4. EIGRP routes
-  if (dev.config.eigrp && dev.config.eigrp.networks) {
-    for (const net of dev.config.eigrp.networks) {
-      const maskInt = (~ipToInt(net.wildcard)) >>> 0;
-      const netInt = ipToInt(net.network);
-      const dstInt = ipToInt(dstIp);
-      if ((dstInt & maskInt) === (netInt & maskInt)) {
-        candidates.push({
-          type: 'eigrp',
-          outInterface: '',
-          nextHopIp: dstIp,
-          metric: 90, // EIGRP AD 90
-        });
-      }
+  // 4-6. EIGRP / RIP / BGP are still simplified: a matching network statement is treated as reachable.
+  // (See PROJECT.md "Known limitations".)
+  for (const net of dev.config.eigrp?.networks || []) {
+    const care = (~ipToInt(net.wildcard)) >>> 0;
+    if (((ipToInt(dstIp) & care) >>> 0) === ((ipToInt(net.network) & care) >>> 0)) {
+      candidates.push({ type: 'eigrp', outInterface: '', nextHopIp: dstIp, metric: 90, prefixLen: wildcardToPrefixLen(net.wildcard) });
     }
   }
-
-  // 5. RIP routes
-  if (dev.config.rip && dev.config.rip.networks) {
-    for (const net of dev.config.rip.networks) {
-      if (areSameSubnet(net, dstIp, '255.255.255.0')) {
-        candidates.push({
-          type: 'rip',
-          outInterface: '',
-          nextHopIp: dstIp,
-          metric: 120, // RIP AD 120
-        });
-      }
+  for (const net of dev.config.rip?.networks || []) {
+    if (areSameSubnet(net, dstIp, '255.255.255.0')) {
+      candidates.push({ type: 'rip', outInterface: '', nextHopIp: dstIp, metric: 120, prefixLen: 24 });
     }
   }
-
-  // 6. BGP routes
-  if (dev.config.bgp && dev.config.bgp.networks) {
-    for (const net of dev.config.bgp.networks) {
-      if (areSameSubnet(net.network, dstIp, net.mask)) {
-        const firstNeighborIp = dev.config.bgp.neighbors[0]?.ip || dstIp;
-        const isInternal = dev.config.bgp.neighbors[0]?.remoteAs === dev.config.bgp.asn;
-        candidates.push({
-          type: 'bgp',
-          outInterface: '',
-          nextHopIp: firstNeighborIp,
-          metric: isInternal ? 200 : 20, // eBGP AD 20, iBGP AD 200
-        });
-      }
+  for (const net of dev.config.bgp?.networks || []) {
+    if (areSameSubnet(net.network, dstIp, net.mask)) {
+      const neighbor = dev.config.bgp!.neighbors[0];
+      const isInternal = neighbor?.remoteAs === dev.config.bgp!.asn;
+      candidates.push({
+        type: 'bgp',
+        outInterface: '',
+        nextHopIp: neighbor?.ip || dstIp,
+        metric: isInternal ? 200 : 20,
+        prefixLen: safeCidr(net.mask),
+      });
     }
   }
 
   if (candidates.length === 0) return null;
 
-  // Prefer connected (metric 0), then static/ospf, then default route
-  candidates.sort((a, b) => a.metric - b.metric);
+  candidates.sort((a, b) => b.prefixLen - a.prefixLen || a.metric - b.metric || (a.cost ?? 0) - (b.cost ?? 0));
   const best = candidates[0];
 
-  // Resolve outInterface if only nextHopIp is known
+  // Recursive lookup: resolve the egress interface from the next hop when only the next hop is known
   if (!best.outInterface && best.nextHopIp) {
     for (const [ifName, iface] of Object.entries(dev.config.interfaces)) {
-      if (iface.ip && iface.mask && iface.status === 'up') {
-        if (areSameSubnet(iface.ip, best.nextHopIp, iface.mask)) {
-          best.outInterface = ifName.split('.')[0];
-          if (ifName.includes('.')) best.subInterface = ifName;
-          break;
-        }
+      if (iface.ip && iface.mask && iface.status === 'up' && areSameSubnet(iface.ip, best.nextHopIp, iface.mask)) {
+        best.outInterface = ifName.split('.')[0];
+        if (ifName.includes('.')) best.subInterface = ifName;
+        break;
       }
     }
   }
 
   return best;
 }
+
+const isRoutedForwarder = (d: Device): boolean =>
+  d.type.startsWith('router') || d.type === 'firewall' || d.type === 'firepower' || (d.type === 'l3switch' && !!d.config.ipRoutingEnabled) || isOspfCapable(d) && d.type !== 'switch';
+
+const isVirtualIface = (n: string) => /^vlan\d+$/i.test(n) || /^loopback/i.test(n);
 
 export function simulatePing(
   srcDeviceId: string,
@@ -272,6 +260,7 @@ export function simulatePing(
 
   // STP state calculation for active topology
   const stpTopology = calculateStp(devices, links, 1);
+  const ospfState = computeOspf(devices, links, stpTopology);
 
   // Check Layer 3 Gateway on Source Host if destination is non-local
   let nextHopIp = dstIp;
@@ -328,7 +317,8 @@ export function simulatePing(
     nextHopIp,
     devices,
     links,
-    stpTopology
+    stpTopology,
+    ospfState
   );
 
   if (!forwardPath.success || forwardPath.hops.length === 0) {
@@ -350,6 +340,37 @@ export function simulatePing(
       l4Payload: { protocol: 'ICMP', summary: `Echo Request - Drop: ${forwardPath.errorMessage}`, details: { reason: forwardPath.errorMessage } },
     });
     return { steps, success: false, error: forwardPath.errorMessage };
+  }
+
+  // The echo reply must find its way back: every router on the path (and the destination, if routed)
+  // needs a route to the source address.
+  const replyRouters = new Map<string, Device>();
+  forwardPath.hops.forEach((h) => {
+    [h.fromDev, h.toDev].forEach((d) => {
+      if (d.id !== srcDev.id && isRoutedForwarder(d)) replyRouters.set(d.id, d);
+    });
+  });
+  for (const r of replyRouters.values()) {
+    if (!lookupRoute(r, srcIp, ospfState.routes[r.id] || [])) {
+      const msg = `Echo Reply cannot return: ${r.name} has no route back to ${srcIp}.`;
+      steps.push({
+        id: `step_err_${Date.now()}_ret`,
+        stepIndex: 1,
+        totalSteps: 1,
+        type: 'ICMP',
+        stage: 'Return Path Failure',
+        fromDeviceId: r.id,
+        toDeviceId: r.id,
+        fromPort: '',
+        toPort: '',
+        status: 'drop',
+        message: msg,
+        l2Frame: { preamble: '10101011', srcMac, dstMac: 'FF:FF:FF:FF:FF:FF', type: '0x0800 (IPv4)' },
+        l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl: 64, protocol: 'ICMP', srcIp: dstIp, dstIp: srcIp },
+        l4Payload: { protocol: 'ICMP', summary: 'Echo Reply - Dropped (no return route)', details: { router: r.name } },
+      });
+      return { steps, success: false, error: msg };
+    }
   }
 
   let stepCounter = 1;
@@ -588,7 +609,8 @@ function findL2L3ForwardPath(
   _nextHopIp: string,
   devices: Device[],
   links: Link[],
-  stpTopology: any
+  stpTopology: any,
+  ospfState: OspfState
 ): ForwardPathResult {
   if (!dstDev) {
     return {
@@ -623,6 +645,9 @@ function findL2L3ForwardPath(
       visited: new Set([`${srcDev.id}:${srcIfaceName}`]),
     },
   ];
+
+  const routeDrops = new Set<string>();
+  const physicalOf = (n: string) => n.split('.')[0];
 
   while (queue.length > 0) {
     const current = queue.shift()!;
@@ -691,17 +716,25 @@ function findL2L3ForwardPath(
         }
       }
 
-      // 4. L3 Router-on-a-stick or SVI inter-VLAN transition
-      if (currDev.type === 'router' || (currDev.type === 'l3switch' && currDev.config.ipRoutingEnabled)) {
-        // Router can bridge across sub-interfaces / SVIs to reach next hop
-        const route = lookupRoute(currDev, dstIp);
-        if (route) {
-          if (route.subInterface) {
-            const subIface = currDev.config.interfaces[route.subInterface];
-            if (subIface && subIface.encapsulationDot1Q) {
-              outVlan = subIface.encapsulationDot1Q;
-              frameTagged = subIface.encapsulationDot1Q;
-            }
+      // 4. L3 forwarding decision: a router/L3 switch only forwards if its routing table says so
+      if (isRoutedForwarder(currDev) && currDev.id !== dstDev.id) {
+        const route = lookupRoute(currDev, dstIp, ospfState.routes[currDev.id] || []);
+        if (!route) {
+          routeDrops.add(`No route to ${dstIp} on ${currDev.name} (routing table has no matching prefix and no default route).`);
+          continue;
+        }
+        if (route.type !== 'connected' && !route.outInterface) {
+          routeDrops.add(`${currDev.name} cannot resolve next hop ${route.nextHopIp} for ${dstIp}: no connected subnet reaches it.`);
+          continue;
+        }
+        if (route.outInterface && !isVirtualIface(route.outInterface) && physicalOf(egressPortName) !== route.outInterface) {
+          continue; // this link is not the egress interface chosen by the routing table
+        }
+        if (route.subInterface) {
+          const subIface = currDev.config.interfaces[route.subInterface];
+          if (subIface && subIface.encapsulationDot1Q) {
+            outVlan = subIface.encapsulationDot1Q;
+            frameTagged = subIface.encapsulationDot1Q;
           }
         }
       }
@@ -735,6 +768,9 @@ function findL2L3ForwardPath(
   }
 
   // If no path found through switches/routers
+  if (routeDrops.size > 0) {
+    return { success: false, hops: [], errorMessage: [...routeDrops][0] };
+  }
   return {
     success: false,
     hops: [],
