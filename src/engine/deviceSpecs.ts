@@ -459,8 +459,8 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
       },
       http: {
         enabled: true,
-        title: 'NetSim Enterprise Portal',
-        body: 'Welcome to the NetSim Network Simulation Lab Web Server.',
+        title: 'NetT-Sim Enterprise Portal',
+        body: 'Welcome to the NetT-Sim Network Simulation Lab Web Server.',
       },
     };
   }

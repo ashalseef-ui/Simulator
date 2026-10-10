@@ -83,7 +83,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [terminalOutput, setTerminalOutput] = useState<string[]>(() => {
     if (device.type === 'firewall' || device.type === 'firepower') {
       return [
-        `NetSim ASA/Firepower Emulated Security Appliance, Software Version 9.8(2)`,
+        `NetT-Sim ASA/Firepower Emulated Security Appliance, Software Version 9.8(2)`,
         `Device: Emulated ASA 5506-X Platform`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
@@ -93,7 +93,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'nexus9000') {
       return [
-        `NetSim NX-OS-Compatible Switch Engine, Version 9.3(5)`,
+        `NetT-Sim NX-OS-Compatible Switch Engine, Version 9.3(5)`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
@@ -102,7 +102,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'wlc') {
       return [
-        `NetSim AireOS-Compatible Controller Emulation, Version 8.5.151.0`,
+        `NetT-Sim AireOS-Compatible Controller Emulation, Version 8.5.151.0`,
         `Device: Emulated 3504 Wireless LAN Controller`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
@@ -112,7 +112,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (isSwitchDevice) {
       return [
-        `NetSim Catalyst-Compatible Switch Engine, Software Version 17.3(4)`,
+        `NetT-Sim Catalyst-Compatible Switch Engine, Software Version 17.3(4)`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
@@ -120,7 +120,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       ];
     }
     return [
-      `NetSim IOS-Compatible Router Engine (Emulated C2900), Software Version 15.4(3)M2`,
+      `NetT-Sim IOS-Compatible Router Engine (Emulated C2900), Software Version 15.4(3)M2`,
       `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
       ``,
       `Press RETURN or type 'enable' to get started!`,
@@ -421,7 +421,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       const parts = cmd.split(/\s+/);
       const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
       out.push(`Connecting to SSH host at ${target}:22...`);
-      out.push(`SSH banner received: NetSim IOS-Compatible Engine, Version 15.4(3)M2`);
+      out.push(`SSH banner received: NetT-Sim IOS-Compatible Engine, Version 15.4(3)M2`);
       out.push(`Password: [Enter VTY password in device terminal]`);
     } else if (lower.startsWith('telnet')) {
       const parts = cmd.split(/\s+/);
@@ -491,7 +491,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
           <div class="text-xl font-bold text-sky-400 mb-2">${h.title}</div>
           <p class="text-sm text-slate-300 leading-relaxed">${h.body}</p>
           <div class="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
-            Served by NetSim Enterprise Web Engine (HTTP/1.1 200 OK)
+            Served by NetT-Sim Enterprise Web Engine (HTTP/1.1 200 OK)
           </div>
         </div>
       `);
@@ -767,7 +767,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     setTerminalOutput([
-                      `NetSim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2`,
+                      `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2`,
                       `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
                       ``,
                     ]);

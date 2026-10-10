@@ -2781,7 +2781,7 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
   if (sub === 'sysinfo') {
-    let out = 'Manufacturer\'s Name.............................. NetSim Systems (Educational Emulation)\n';
+    let out = 'Manufacturer\'s Name.............................. NetT-Sim Systems (Educational Emulation)\n';
     out += 'Product Name..................................... Emulated 3504 Wireless LAN Controller\n';
     out += 'Product Version.................................. 8.5.151.0 (Simulation)\n';
     out += 'RTOS Version..................................... 8.5.151.0\n';
@@ -2805,7 +2805,7 @@ function handleShowCommands(
   // show tech-support
   if (sub.startsWith('tech') || sub.startsWith('tech-support')) {
     let out = '------------------ show version ------------------\n';
-    out += `NetSim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
+    out += `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
     out += `% Notice: Independent educational simulation. Not affiliated with Cisco Systems, Inc.\n`;
     out += `System image file is "flash:c2900-universalk9-mz.SPA.154-3.M2.bin"\n\n`;
     out += '------------------ show running-config ------------------\n';
@@ -2821,9 +2821,9 @@ function handleShowCommands(
 
   // show version
   if (sub === 'version' || sub === 'ver') {
-    let out = `NetSim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
-    out += `% Notice: NetSim is an educational simulator for CCNA study, not affiliated with Cisco Systems, Inc.\n`;
-    out += `ROM: NetSim System Bootstrap, Version 15.0(1r)M16\n\n`;
+    let out = `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
+    out += `% Notice: NetT-Sim is an educational simulator for CCNA study, not affiliated with Cisco Systems, Inc.\n`;
+    out += `ROM: NetT-Sim System Bootstrap, Version 15.0(1r)M16\n\n`;
     out += `${device.config.hostname || device.name} uptime is 4 days, 16 hours, 28 minutes\n`;
     out += `System returned to ROM by power-on\n`;
     out += `Emulated 2911 Hardware Platform (revision 1.0) with 514048K/10240K bytes of memory.\n`;
