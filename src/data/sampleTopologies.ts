@@ -13,7 +13,7 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
   {
     id: 'router-on-a-stick',
     name: 'Router-on-a-Stick (802.1Q Inter-VLAN)',
-    description: 'Cisco 2911 Router with dot1Q subinterfaces routing between VLAN 10 (Sales) and VLAN 20 (Engineering) on a 2960 Switch.',
+    description: '2911 Router with dot1Q subinterfaces routing between VLAN 10 (Sales) and VLAN 20 (Engineering) on a Managed Switch.',
     category: 'Inter-VLAN',
     load: () => {
       const r0 = createDevice('router', 'R1-HQ', 400, 100);
@@ -98,7 +98,7 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
   {
     id: 'stp-redundant-triangle',
     name: 'Spanning Tree (STP) Triangle Loop',
-    description: 'Three interconnected Cisco 2960 switches demonstrating Root Bridge election, Root Ports, Designated Ports, and Alternate Blocking (BLK) links.',
+    description: 'Three interconnected managed switches demonstrating Root Bridge election, Root Ports, Designated Ports, and Alternate Blocking (BLK) links.',
     category: 'Switching',
     load: () => {
       const sw1 = createDevice('switch', 'SW-Root', 400, 100);
@@ -140,7 +140,7 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
   },
   {
     id: 'cisco-3650-multilayer-core',
-    name: 'Cisco 3650 Multilayer Core Architecture',
+    name: '3650 Multilayer Core Architecture',
     description: 'Enterprise collapsed-core design featuring Switched Virtual Interfaces (SVIs) and native Layer 3 switching.',
     category: 'Enterprise Core',
     load: () => {
@@ -219,7 +219,7 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
   {
     id: 'soho-dhcp-server',
     name: 'SOHO Office with Server & Dynamic DHCP',
-    description: 'Complete Small Office network with a simulated Cisco Lab Server hosting DHCP, DNS, and HTTP Web portal.',
+    description: 'Complete Small Office network with a simulated Lab Server hosting DHCP, DNS, and HTTP Web portal.',
     category: 'Services',
     load: () => {
       const r0 = createDevice('router', 'Gateway-R1', 400, 100);
@@ -281,7 +281,7 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
   {
     id: 'blank-slate',
     name: 'Blank Slate',
-    description: 'Empty workspace ready to design and simulate your own custom Cisco network topology from scratch.',
+    description: 'Empty workspace ready to design and simulate your own custom network topology from scratch.',
     category: 'Custom',
     load: () => ({ devices: [], links: [] }),
   },

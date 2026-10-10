@@ -1,6 +1,6 @@
 {
-  "name": "NetSim - Cisco CCNA Network Simulator",
-  "description": "Enterprise-grade in-browser Cisco network simulator with interactive IOS CLI, Spanning Tree convergence, step-by-step packet tracing, 10 guided CCNA labs, subnet calculator, and AI topology studio.",
+  "name": "NetT-Sim - Virtual Network Architecture Simulator",
+  "description": "Enterprise-grade in-browser network simulator with interactive IOS-compatible CLI, Spanning Tree convergence, step-by-step packet tracing, guided practice labs, subnet calculator, and AI lab architect studio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

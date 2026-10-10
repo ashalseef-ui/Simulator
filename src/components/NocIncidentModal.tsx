@@ -243,7 +243,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Live production outage triage, deep protocol diagnosis, and automated Cisco IOS solution verification
+                Live production outage triage, deep protocol diagnosis, and automated IOS-compatible solution verification
               </p>
             </div>
           </div>
@@ -514,7 +514,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
               <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
                 <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Lightbulb className="w-4 h-4 text-amber-400" />
-                  Tiered Cisco TAC Problem-Solving Guidance
+                  Tiered TAC Problem-Solving Guidance
                 </h4>
 
                 <div className="space-y-2.5">
@@ -704,7 +704,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      Step-by-Step Cisco IOS Remediation Plan
+                      Step-by-Step IOS Remediation Plan
                     </h4>
                     {activeIncident && (
                       <button
@@ -782,7 +782,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                 Audit STP Root Bridge
               </button>
               <button
-                onClick={() => handleSendChat('Provide the exact Cisco IOS configuration template for Router-on-a-stick for VLAN 10 and VLAN 20.')}
+                onClick={() => handleSendChat('Provide the exact IOS configuration template for Router-on-a-stick for VLAN 10 and VLAN 20.')}
                 className="text-[11px] text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700 shrink-0 cursor-pointer"
               >
                 Router-on-a-stick Template
@@ -836,7 +836,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                   </div>
                   <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-xs text-slate-400 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                    TAC Co-Pilot is analyzing Cisco configurations...
+                    TAC Co-Pilot is analyzing configurations...
                   </div>
                 </div>
               )}

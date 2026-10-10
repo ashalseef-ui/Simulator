@@ -19,7 +19,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
 
   // Generation State (gemini-3-pro-image-preview)
   const [prompt, setPrompt] = useState(
-    'Cisco Enterprise 3-Tier Campus Network with Core 3650 Switches, Distribution Layer, and Access Switches with 802.1Q Trunks'
+    'Enterprise 3-Tier Campus Network with Core Multilayer Switches, Distribution Layer, and Access Switches with 802.1Q Trunks'
   );
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '4:3' | '1:1'>('16:9');
@@ -35,10 +35,10 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const presetPrompts = [
-    'Cisco Enterprise Data Center Spine-Leaf Fabric with Nexus switches and redundant 100G uplinks',
-    'High-Availability Campus LAN with Dual Cisco 3650 Core Switches, SVIs, and Spanning Tree loop-free topology',
-    'Cisco ASA 5506-X Perimeter Security Architecture with DMZ Web Server and Inside LAN',
-    'Router-on-a-stick Inter-VLAN routing diagram with 802.1Q subinterfaces and Cisco 2960 switch',
+    'Enterprise Data Center Spine-Leaf Fabric with high-throughput switches and redundant uplinks',
+    'High-Availability Campus LAN with Dual Multilayer Core Switches, SVIs, and Spanning Tree loop-free topology',
+    'Perimeter Firewall Security Architecture with DMZ Web Server and Inside LAN',
+    'Router-on-a-stick Inter-VLAN routing diagram with 802.1Q subinterfaces and managed access switch',
   ];
 
   const handleGenerate = async () => {
@@ -131,7 +131,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Generate high-resolution Cisco architecture schematics (1K, 2K, 4K) & edit with natural language
+                Generate high-resolution network architecture schematics (1K, 2K, 4K) & edit with natural language
               </div>
             </div>
           </div>
@@ -235,7 +235,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
                     rows={4}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe your Cisco network topology architecture..."
+                    placeholder="Describe your network topology architecture..."
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 outline-none focus:border-sky-400 custom-scrollbar"
                   />
                 </div>
@@ -337,7 +337,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
               <div className="relative max-w-full max-h-full flex flex-col items-center group">
                 <img
                   src={currentImage}
-                  alt="Generated Cisco Topology Diagram"
+                  alt="Generated Network Topology Diagram"
                   className="max-h-[62vh] max-w-full object-contain rounded-xl border border-slate-800 shadow-2xl"
                 />
 
@@ -368,7 +368,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
                   No Diagram Generated Yet
                 </div>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Select your desired resolution (1K, 2K, or 4K), enter your architectural description, and generate production-ready Cisco network diagrams.
+                  Select your desired resolution (1K, 2K, or 4K), enter your architectural description, and generate production-ready enterprise network diagrams.
                 </p>
               </div>
             )}

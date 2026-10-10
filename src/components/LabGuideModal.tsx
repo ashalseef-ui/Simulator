@@ -55,7 +55,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
             </div>
             <div>
               <div className="text-sm font-bold text-white">
-                Guided Cisco CCNA Hands-on Practice Labs
+                Guided Hands-on Practice Labs (CCNA Preparation)
               </div>
               <div className="text-[11px] text-slate-400">
                 10 Real-world Scenarios with Automated Goal Verification

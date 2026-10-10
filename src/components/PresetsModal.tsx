@@ -49,7 +49,7 @@ export const PresetsModal: React.FC<PresetsModalProps> = ({
                 Network Topologies & Lab Files (.json)
               </div>
               <div className="text-[11px] text-slate-400">
-                Load ready-to-test Cisco architectures or import/export custom lab files
+                Load ready-to-test network architectures or import/export custom lab files
               </div>
             </div>
           </div>

@@ -7,7 +7,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
     title: '1. LAN & ARP Fundamentals',
     category: 'CCNA Layer 2',
     difficulty: 'Beginner',
-    summary: 'Configure static IP addressing on PC hosts connected to a Cisco 2960 switch and observe address resolution.',
+    summary: 'Configure static IP addressing on PC hosts connected to an access switch and observe address resolution.',
     objective: 'Assign IP addresses 192.168.1.10/24 to PC0 and 192.168.1.20/24 to PC1, then verify connectivity.',
     instructions: [
       'Open PC0 desktop settings and set IP to 192.168.1.10 with Subnet Mask 255.255.255.0.',
@@ -75,7 +75,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
     title: '2. VLANs & 802.1Q Trunks',
     category: 'CCNA Switching',
     difficulty: 'Intermediate',
-    summary: 'Segment traffic into VLAN 10 (Sales) and VLAN 20 (Engineering) across two Cisco switches connected via an 802.1Q trunk link.',
+    summary: 'Segment traffic into VLAN 10 (Sales) and VLAN 20 (Engineering) across two switches connected via an 802.1Q trunk link.',
     objective: 'Create VLAN 10 and 20 on both switches, configure Fa0/1 as access VLAN 10, Fa0/2 as access VLAN 20, and Gi0/1 as trunk.',
     instructions: [
       'On Switch0 and Switch1, enter Global Config: `vlan 10` (name Sales), `vlan 20` (name Engineering).',
@@ -157,7 +157,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
     title: '3. Inter-VLAN Routing (Router-on-a-Stick)',
     category: 'CCNA Routing',
     difficulty: 'Intermediate',
-    summary: 'Configure 802.1Q subinterfaces on a Cisco 2911 router to route between VLAN 10 and VLAN 20.',
+    summary: 'Configure 802.1Q subinterfaces on a router to route between VLAN 10 and VLAN 20.',
     objective: 'Configure router subinterfaces Gi0/0.10 and Gi0/0.20 with dot1Q encapsulation and default gateway IPs.',
     instructions: [
       'On Router0: `interface Gi0/0`, then `no shutdown`.',
@@ -238,7 +238,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
   },
   {
     id: 'lab-4-l3-switch-core',
-    title: '4. Cisco 3650 Multilayer Core Switch',
+    title: '4. 3650 Multilayer Core Switch Architecture',
     category: 'CCNA Enterprise',
     difficulty: 'Intermediate',
     summary: 'Enable IP routing and create Switched Virtual Interfaces (SVIs) on a multilayer switch to route locally.',
@@ -454,10 +454,10 @@ export const LAB_SCENARIOS: LabScenario[] = [
   },
   {
     id: 'lab-7-dhcp-server',
-    title: '7. Cisco IOS DHCP Server & Pool',
+    title: '7. DHCP Server & Dynamic Pool Configuration',
     category: 'CCNA Services',
     difficulty: 'Intermediate',
-    summary: 'Configure a Cisco IOS router as a DHCP Server providing dynamic IPv4 configuration to workstation clients.',
+    summary: 'Configure router DHCP services providing dynamic IPv4 configuration to workstation clients.',
     objective: 'Define an IP DHCP pool `LAN-POOL` with network 192.168.1.0/24, default-router 192.168.1.1, and dns-server 8.8.8.8.',
     instructions: [
       'On Router0: `ip dhcp pool LAN-POOL`.',

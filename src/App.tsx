@@ -29,6 +29,8 @@ import { PresetsModal } from './components/PresetsModal';
 import { AiDiagramModal } from './components/AiDiagramModal';
 import { NocIncidentModal } from './components/NocIncidentModal';
 import { SocraticMentorModal } from './components/SocraticMentorModal';
+import { AboutLegalModal } from './components/AboutLegalModal';
+import { TextToTopologyModal } from './components/TextToTopologyModal';
 import { IncidentScenario } from './data/incidentScenarios';
 import { X } from 'lucide-react';
 
@@ -100,11 +102,14 @@ export default function App() {
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
   const [showNocModal, setShowNocModal] = useState<boolean>(false);
   const [showSocraticModal, setShowSocraticModal] = useState<boolean>(false);
+  const [showLegalModal, setShowLegalModal] = useState<boolean>(false);
+  const [showTextToTopologyModal, setShowTextToTopologyModal] = useState<boolean>(false);
 
   // Active Incident Scenario
   const [activeIncident, setActiveIncident] = useState<IncidentScenario | null>(null);
   // Active Lab Scenario
   const [activeLabId, setActiveLabId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleDeployIncident = (incident: IncidentScenario) => {
     const topo = incident.initialTopology();
@@ -115,6 +120,47 @@ export default function App() {
     setSelectedDeviceId(null);
     setSelectedLinkId(null);
     pushHistory(topo.devices, topo.links);
+  };
+
+  const handleDeployGeneratedTopology = (
+    newDevices: Device[],
+    newLinks: Link[],
+    _title: string,
+    mode: 'replace' | 'append'
+  ) => {
+    if (mode === 'replace') {
+      setDevices(newDevices);
+      setLinks(newLinks);
+      setDeviceWindows({});
+      setSimulationSteps([]);
+      setActiveIncident(null);
+      setSelectedDeviceId(null);
+      setSelectedLinkId(null);
+      pushHistory(newDevices, newLinks);
+    } else {
+      const offsetX = 80;
+      const offsetY = 80;
+      const shiftedDevices = newDevices.map((d) => ({
+        ...d,
+        id: `gen_${d.id}_${Date.now()}`,
+        x: d.x + offsetX,
+        y: d.y + offsetY,
+      }));
+      const idMap = new Map<string, string>();
+      newDevices.forEach((d, i) => idMap.set(d.id, shiftedDevices[i].id));
+      const shiftedLinks = newLinks.map((l, i) => ({
+        ...l,
+        id: `gen_lnk_${i}_${Date.now()}`,
+        fromDevice: idMap.get(l.fromDevice) || l.fromDevice,
+        toDevice: idMap.get(l.toDevice) || l.toDevice,
+      }));
+
+      const combinedDevs = [...devices, ...shiftedDevices];
+      const combinedLinks = [...links, ...shiftedLinks];
+      setDevices(combinedDevs);
+      setLinks(combinedLinks);
+      pushHistory(combinedDevs, combinedLinks);
+    }
   };
 
   // STP Engine recalculation
@@ -462,7 +508,7 @@ export default function App() {
         const parsed = JSON.parse(content);
 
         if (!parsed || !Array.isArray(parsed.devices) || !Array.isArray(parsed.links)) {
-          alert('Invalid Lab JSON file format. File must contain "devices" and "links" arrays.');
+          setErrorMessage('Invalid Lab JSON file format. File must contain "devices" and "links" arrays.');
           return;
         }
 
@@ -478,7 +524,7 @@ export default function App() {
         setSelectedDeviceId(null);
         setSelectedLinkId(null);
       } catch (err) {
-        alert('Failed to parse Lab JSON file. Please ensure it is valid JSON.');
+        setErrorMessage('Failed to parse Lab JSON file. Please ensure it is valid JSON.');
       }
     };
     reader.readAsText(file);
@@ -539,12 +585,14 @@ export default function App() {
         onOpenSubnetCalc={() => setShowSubnetModal(true)}
         onOpenPacketInspector={() => setShowPacketModal(true)}
         onOpenAiStudio={() => setShowAiModal(true)}
+        onOpenTextToTopology={() => setShowTextToTopologyModal(true)}
         onTileWindows={handleTileWindows}
         onCascadeWindows={handleCascadeWindows}
         onExportLab={handleExportLab}
         onImportLab={handleImportLab}
         simulationStepCount={simulationSteps.length}
         activeIncidentTitle={activeIncident?.title}
+        onOpenLegal={() => setShowLegalModal(true)}
       />
 
       {/* Main Workspace: Palette Sidebar + Infinite Canvas */}
@@ -654,6 +702,7 @@ export default function App() {
         devices={devices}
         onToggleWindow={handleToggleWindow}
         onMinimizeAll={handleMinimizeAll}
+        onOpenLegal={() => setShowLegalModal(true)}
       />
 
       {/* Modals */}
@@ -738,6 +787,32 @@ export default function App() {
         onClose={() => setShowSocraticModal(false)}
         topologyContext={{ deviceCount: devices.length, linkCount: links.length }}
       />
+
+      {/* Legal & Trademark Disclaimers Modal */}
+      <AboutLegalModal
+        isOpen={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+      />
+
+      {/* AI & Offline Text-to-Topology Lab Architect Modal */}
+      <TextToTopologyModal
+        isOpen={showTextToTopologyModal}
+        onClose={() => setShowTextToTopologyModal(false)}
+        onDeployTopology={handleDeployGeneratedTopology}
+      />
+
+      {errorMessage && (
+        <div className="fixed bottom-12 right-6 z-50 flex items-center gap-3 bg-red-950/95 border border-red-500/60 text-red-100 px-4 py-3 rounded-lg shadow-2xl backdrop-blur-md">
+          <span className="text-sm font-medium">{errorMessage}</span>
+          <button
+            onClick={() => setErrorMessage(null)}
+            className="text-red-400 hover:text-red-100 p-1 transition-colors rounded"
+            aria-label="Dismiss error"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

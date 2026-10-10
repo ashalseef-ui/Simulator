@@ -1,6 +1,6 @@
-# NetSim: Cisco CCNA Network Simulator
+# NetSim: Virtual Network Architecture Simulator (IOS-Syntax Compatible)
 
-An in-browser Cisco-style network simulator for CCNA students: build a topology, configure devices through an IOS-like CLI, and watch packets move hop by hop.
+An in-browser educational network simulator for CCNA certification study: build a topology, configure devices through an IOS-style CLI, and watch packets move hop by hop.
 
 ## What is genuinely simulated
 
@@ -45,3 +45,11 @@ npm run lint             # tsc --noEmit
 - Rate limits: 20 text requests/min and 4 image requests/min per IP (in-memory; use a shared store if you run several instances)
 - Request bodies are capped at 512 KB (12 MB for image edits) and all inputs are length-limited
 - The OSPF diagnosis sent to the model is computed by the simulator's own engine, not guessed
+
+## Legal & Trademark Disclaimer
+
+NetSim is an independent educational tool created for instructional simulation and CCNA study.
+- It is **not** affiliated with, sponsored by, authorized by, or endorsed by Cisco Systems, Inc.
+- "Cisco", "Cisco IOS", "Catalyst", "CCNA", and "CCIE" are registered trademarks of Cisco Systems, Inc.
+- All product names, logos, and brands are property of their respective owners. Their use is nominative and purely for educational compatibility and technical description.
+

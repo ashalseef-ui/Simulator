@@ -196,7 +196,7 @@ export const StackingView: React.FC<StackingViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white">Cisco StackWise-480 Architecture</span>
+              <span className="text-sm font-bold text-white">StackWise Architecture (Multi-Switch Stack)</span>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 SSO Active
               </span>
@@ -399,7 +399,7 @@ export const StackingView: React.FC<StackingViewProps> = ({
           Cross-Stack Multi-Chassis EtherChannel (MEC) & SSO Redundancy
         </div>
         <p className="text-slate-300 leading-relaxed">
-          Switch stacking bundles the control plane of all physical units into a single logical Cisco IOS switch. You can create Cross-Stack EtherChannels combining interfaces from different stack members (e.g. <code className="text-emerald-400 font-mono">Gi1/0/1</code> on Switch 1 and <code className="text-emerald-400 font-mono">Gi2/0/1</code> on Switch 2). Even if Switch 1 suffers a power failure, traffic continues forwarding seamlessly across Switch 2 without Spanning-Tree topology recalculation.
+          Switch stacking bundles the control plane of all physical units into a single logical managed switch. You can create Cross-Stack EtherChannels combining interfaces from different stack members (e.g. <code className="text-emerald-400 font-mono">Gi1/0/1</code> on Switch 1 and <code className="text-emerald-400 font-mono">Gi2/0/1</code> on Switch 2). Even if Switch 1 suffers a power failure, traffic continues forwarding seamlessly across Switch 2 without Spanning-Tree topology recalculation.
         </p>
         <div className="pt-2 font-mono text-[11px] text-slate-400 flex flex-wrap gap-4">
           <span>CLI: <code className="text-sky-300">show switch detail</code></span>

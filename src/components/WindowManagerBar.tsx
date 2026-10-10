@@ -6,6 +6,7 @@ interface WindowManagerBarProps {
   devices: Device[];
   onToggleWindow: (id: string) => void;
   onMinimizeAll: () => void;
+  onOpenLegal?: () => void;
 }
 
 export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
@@ -13,6 +14,7 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
   devices,
   onToggleWindow,
   onMinimizeAll,
+  onOpenLegal,
 }) => {
   const windowList = Object.values(windows);
 
@@ -54,16 +56,29 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
         )}
       </div>
 
-      {/* Quick minimize all */}
-      {windowList.length > 0 && (
-        <button
-          onClick={onMinimizeAll}
-          title="Minimize All Windows"
-          className="text-[11px] text-slate-400 hover:text-white px-2 py-1 hover:bg-slate-900 rounded cursor-pointer"
-        >
-          Minimize All
-        </button>
-      )}
+      {/* Right Controls: Disclaimer & minimize all */}
+      <div className="flex items-center gap-3">
+        {onOpenLegal && (
+          <button
+            onClick={onOpenLegal}
+            title="View Educational & Trademark Disclaimer"
+            className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <span>Educational Simulator</span>
+            <span className="text-slate-600">•</span>
+            <span className="hidden md:inline">Not affiliated with Cisco</span>
+          </button>
+        )}
+        {windowList.length > 0 && (
+          <button
+            onClick={onMinimizeAll}
+            title="Minimize All Windows"
+            className="text-[11px] text-slate-400 hover:text-white px-2 py-1 hover:bg-slate-900 rounded cursor-pointer"
+          >
+            Minimize All
+          </button>
+        )}
+      </div>
     </footer>
   );
 };

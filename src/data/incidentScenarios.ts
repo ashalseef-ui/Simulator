@@ -23,7 +23,7 @@ export interface IncidentScenario {
   hints: {
     level1: string; // Triage Clue
     level2: string; // Diagnostic Show/Debug commands
-    level3: string; // Cisco IOS Configuration commands
+    level3: string; // Configuration commands
   };
 }
 
@@ -408,7 +408,7 @@ export const INCIDENT_SCENARIOS: IncidentScenario[] = [
       };
     },
     hints: {
-      level1: 'Cisco ACLs process rules top-down and have an implicit "deny ip any any" at the bottom of every list.',
+      level1: 'Standard ACLs process rules top-down and have an implicit "deny ip any any" at the bottom of every list.',
       level2: 'Execute "show access-lists" and "show ip interface Gi0/0" on Border-Router to check applied access groups.',
       level3: 'On Border-Router:\n  configure terminal\n  access-list 101 permit ip 192.168.1.0 0.0.0.255 any\n  access-list 101 permit ip any any',
     },

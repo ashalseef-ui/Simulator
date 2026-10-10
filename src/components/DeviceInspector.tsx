@@ -83,9 +83,9 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [terminalOutput, setTerminalOutput] = useState<string[]>(() => {
     if (device.type === 'firewall' || device.type === 'firepower') {
       return [
-        `Cisco Adaptive Security Appliance Software Version 9.8(2)`,
-        `Device: Cisco ASA 5506-X with FirePOWER Services`,
-        `Compiled Mon 05-Oct-26 06:30 by NetCraft`,
+        `NetSim ASA/Firepower Emulated Security Appliance, Software Version 9.8(2)`,
+        `Device: Emulated ASA 5506-X Platform`,
+        `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Type 'enable' to enter privileged mode.`,
         ``,
@@ -93,9 +93,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'nexus9000') {
       return [
-        `Cisco Nexus Operating System (NX-OS) Software, Version 9.3(5)`,
-        `TAC support: http://www.cisco.com/tac`,
-        `Compiled Mon 05-Oct-26 06:30 by NetCraft`,
+        `NetSim NX-OS-Compatible Switch Engine, Version 9.3(5)`,
+        `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
         ``,
@@ -103,8 +102,9 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'wlc') {
       return [
-        `Cisco AireOS Controller Software Version 8.5.151.0`,
-        `Cisco 3504 Wireless LAN Controller (AIR-CT3504-K9)`,
+        `NetSim AireOS-Compatible Controller Emulation, Version 8.5.151.0`,
+        `Device: Emulated 3504 Wireless LAN Controller`,
+        `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN to start session.`,
         ``,
@@ -112,18 +112,16 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (isSwitchDevice) {
       return [
-        `Cisco IOS Software, Catalyst C2960/3560/3850/9300 Software (C9300-UNIVERSALK9-M), Version 17.3(4)`,
-        `Technical Support: http://www.cisco.com/techsupport`,
-        `Compiled Mon 05-Oct-26 06:30 by NetCraft`,
+        `NetSim Catalyst-Compatible Switch Engine, Software Version 17.3(4)`,
+        `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
         ``,
       ];
     }
     return [
-      `Cisco IOS Software, C2900 Software (C2900-UNIVERSALK9-M), Version 15.4(3)M2`,
-      `Technical Support: http://www.cisco.com/techsupport`,
-      `Compiled Mon 05-Oct-26 06:30 by NetCraft`,
+      `NetSim IOS-Compatible Router Engine (Emulated C2900), Software Version 15.4(3)M2`,
+      `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
       ``,
       `Press RETURN or type 'enable' to get started!`,
       ``,
@@ -137,7 +135,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [desktopTool, setDesktopTool] = useState<'ip' | 'terminal' | 'browser'>('ip');
   const [cmdOutput, setCmdOutput] = useState<string[]>(['NetCraft Command Prompt [Version 1.0]', 'Type "ping <ip>", "nslookup <domain>", or "help".', '']);
   const [cmdInput, setCmdInput] = useState('');
-  const [browserUrl, setBrowserUrl] = useState('http://cisco.com');
+  const [browserUrl, setBrowserUrl] = useState('http://netsim.local');
   const [browserContent, setBrowserContent] = useState<string | null>(null);
 
   // Server DNS Record input state
@@ -364,7 +362,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         }
       }
       if (!recordsFound) {
-        out.push('    Record Name . . . . . : cisco.com');
+        out.push('    Record Name . . . . . : netsim.local');
         out.push('    A (IPv4) Record . . . : 192.168.1.10');
       }
     } else if (lower === 'ipconfig /flushdns') {
@@ -378,7 +376,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       out.push('\nTrace complete.');
     } else if (lower.startsWith('nslookup')) {
       const parts = cmd.split(/\s+/);
-      const domain = parts[1] || 'cisco.com';
+      const domain = parts[1] || 'netsim.local';
       const activeDnsServer = device.config.dnsServer || '192.168.1.10';
 
       out.push(`Server:  ns1.netcraft.lab`);
@@ -423,8 +421,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       const parts = cmd.split(/\s+/);
       const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
       out.push(`Connecting to SSH host at ${target}:22...`);
-      out.push(`SSH banner received: Cisco IOS Software, Version 15.4(3)M2`);
-      out.push(`Password: [Enter Cisco VTY password in device terminal]`);
+      out.push(`SSH banner received: NetSim IOS-Compatible Engine, Version 15.4(3)M2`);
+      out.push(`Password: [Enter VTY password in device terminal]`);
     } else if (lower.startsWith('telnet')) {
       const parts = cmd.split(/\s+/);
       const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
@@ -493,7 +491,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
           <div class="text-xl font-bold text-sky-400 mb-2">${h.title}</div>
           <p class="text-sm text-slate-300 leading-relaxed">${h.body}</p>
           <div class="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
-            Served by Cisco 2960 / Linux Enterprise Web Engine (HTTP/1.1 200 OK)
+            Served by NetSim Enterprise Web Engine (HTTP/1.1 200 OK)
           </div>
         </div>
       `);
@@ -518,7 +516,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `Analyze this Cisco device (${device.name}, ${device.type}). Audit interface IP allocations, OSPF areas, VLANs, and default routes. Provide a concise 2-sentence TAC assessment and recommended commands.`,
+          message: `Analyze this network device (${device.name}, ${device.type}). Audit interface IP allocations, OSPF areas, VLANs, and default routes. Provide a concise 2-sentence TAC assessment and recommended commands.`,
           deviceContext: {
             hostname: device.config.hostname,
             type: device.type,
@@ -720,7 +718,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
             {/* Terminal Mini Action Toolbar */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-900 select-none">
               <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                <span className="text-emerald-400 font-bold">Cisco IOS CLI</span>
+                <span className="text-emerald-400 font-bold">IOS-Style CLI</span>
                 <span className="text-slate-600">|</span>
                 <span>{device.config.hostname || device.name}</span>
                 {cliSession.debugFlags?.icmp && (
@@ -769,8 +767,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     setTerminalOutput([
-                      `Cisco IOS Software, C2900 Software (C2900-UNIVERSALK9-M), Version 15.4(3)M2`,
-                      `Compiled Mon 05-Oct-26 06:30 by NetCraft`,
+                      `NetSim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2`,
+                      `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
                       ``,
                     ]);
                   }}
@@ -1467,7 +1465,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                       <label className="text-[10px] text-slate-400 block mb-0.5">Domain</label>
                       <input
                         type="text"
-                        placeholder="e.g. cisco.com"
+                        placeholder="e.g. netsim.local"
                         value={newDnsDomain}
                         onChange={(e) => setNewDnsDomain(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"

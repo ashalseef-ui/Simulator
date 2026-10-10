@@ -12,6 +12,8 @@ import {
   ShieldAlert,
   FileText,
   ChevronDown,
+  Scale,
+  Wand2,
 } from 'lucide-react';
 
 interface TopBarProps {
@@ -26,6 +28,7 @@ interface TopBarProps {
   onOpenSubnetCalc: () => void;
   onOpenPacketInspector: () => void;
   onOpenAiStudio: () => void;
+  onOpenTextToTopology?: () => void;
   onTileWindows: () => void;
   onCascadeWindows: () => void;
   onExportLab: () => void;
@@ -35,6 +38,7 @@ interface TopBarProps {
   activeLabTitle?: string | null;
   activeLabScore?: number;
   onToggleLabHud?: () => void;
+  onOpenLegal?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -49,6 +53,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenSubnetCalc,
   onOpenPacketInspector,
   onOpenAiStudio,
+  onOpenTextToTopology,
   onTileWindows,
   onCascadeWindows,
   onExportLab,
@@ -58,6 +63,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   activeLabTitle,
   activeLabScore = 0,
   onToggleLabHud,
+  onOpenLegal,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
@@ -79,7 +85,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Logo/Title */}
         <div className="flex items-center gap-2 mr-4">
           <Network className="w-5 h-5 text-sky-400" />
-          <h1 className="text-sm font-bold text-white hidden sm:block">NetSim</h1>
+          <h1 className="text-sm font-bold text-white hidden sm:block">NetT-Sim</h1>
         </div>
 
         {/* File Menu Dropdown */}
@@ -234,12 +240,24 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
         </button>
 
+        {onOpenTextToTopology && (
+          <button
+            onClick={onOpenTextToTopology}
+            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+            title="Synthesize an entire interactive network lab from a plain English prompt"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>AI Lab Architect</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenAiStudio}
-          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+          title="Generate schematic architecture diagrams"
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          AI Diagram Studio
+          <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+          <span className="hidden xl:inline">Diagram Studio</span>
         </button>
       </div>
 
@@ -261,6 +279,16 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Layers className="w-3.5 h-3.5" />
           <span className="text-[11px] hidden sm:inline">Cascade</span>
         </button>
+        {onOpenLegal && (
+          <button
+            onClick={onOpenLegal}
+            title="Legal & Trademark Disclaimers"
+            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-sky-300 rounded-lg text-xs flex items-center gap-1 cursor-pointer ml-1 pl-2 border-l border-slate-800"
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span className="text-[11px] hidden lg:inline">Legal</span>
+          </button>
+        )}
       </div>
       </div>
     </header>

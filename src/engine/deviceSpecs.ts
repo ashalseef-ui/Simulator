@@ -18,7 +18,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   // ROUTERS
   router: {
     type: 'router',
-    displayName: 'Cisco 2911 ISR',
+    displayName: '2911 ISR Router (Emulated)',
     category: 'Routers',
     description: 'Modular Integrated Services Router. 3x GigabitEthernet, 2x Serial WAN, OSPFv2, Subinterfaces, DHCP pools.',
     defaultPorts: [
@@ -36,7 +36,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   router4331: {
     type: 'router4331',
-    displayName: 'Cisco 4331 ISR',
+    displayName: '4331 ISR Router (Emulated)',
     category: 'Routers',
     description: 'Next-Gen Enterprise ISR. 3x Gigabit interfaces, hardware encryption, voice gateway, and SD-WAN ready.',
     defaultPorts: [
@@ -53,7 +53,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   router1941: {
     type: 'router1941',
-    displayName: 'Cisco 1941 ISR',
+    displayName: '1941 ISR Router (Emulated)',
     category: 'Routers',
     description: 'Compact modular branch router. 2x GigabitEthernet, 2x HWIC slots for high-speed serial WAN uplinks.',
     defaultPorts: [
@@ -72,7 +72,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   // SWITCHES
   switch: {
     type: 'switch',
-    displayName: 'Cisco Catalyst 2960-24TT',
+    displayName: 'Catalyst 2960-24TT Switch (Emulated)',
     category: 'Switches',
     description: 'Enterprise Layer 2 Access Switch. 24 FastEthernet ports + 2 Gigabit uplinks. PVST+, 802.1Q VLAN trunking.',
     defaultPorts: [
@@ -91,7 +91,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   switch2960_48: {
     type: 'switch2960_48',
-    displayName: 'Cisco Catalyst 2960-48TT',
+    displayName: 'Catalyst 2960-48TT Switch (Emulated)',
     category: 'Switches',
     description: 'High-Density Enterprise Layer 2 Switch. 48 FastEthernet ports + 2 Gigabit uplinks. PVST+, Voice VLAN, 802.1Q trunking.',
     defaultPorts: [
@@ -110,7 +110,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   switch3560: {
     type: 'switch3560',
-    displayName: 'Cisco Catalyst 3560',
+    displayName: 'Catalyst 3560 L3 Switch (Emulated)',
     category: 'Switches',
     description: 'Enterprise Layer 3 Distribution Switch. 24 FastEthernet + 2 Gigabit SFP ports. Supports SVIs & IP routing.',
     defaultPorts: [
@@ -129,7 +129,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   l3switch: {
     type: 'l3switch',
-    displayName: 'Cisco Catalyst 3650 Core',
+    displayName: 'Catalyst 3650 Core Switch (Emulated)',
     category: 'Switches',
     description: 'Enterprise Collapsed-Core Multilayer Switch. 24 GigabitEthernet ports with wire-speed IP routing and SVIs.',
     defaultPorts: Array.from({ length: 24 }, (_, i) => ({
@@ -144,7 +144,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   switch3850: {
     type: 'switch3850',
-    displayName: 'Cisco Catalyst 3850-24P',
+    displayName: 'Catalyst 3850-24P Switch (Emulated)',
     category: 'Switches',
     description: 'Next-Gen Multilayer Catalyst Switch. 24 Gigabit PoE+ ports, StackWise 480 support, and wire-speed routing.',
     defaultPorts: Array.from({ length: 24 }, (_, i) => ({
@@ -159,7 +159,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   switch9300: {
     type: 'switch9300',
-    displayName: 'Cisco Catalyst 9300-48P',
+    displayName: 'Catalyst 9300-48P Switch (Emulated)',
     category: 'Switches',
     description: 'Flagship Enterprise Catalyst Access/Core Switch. 48 Gigabit Ethernet ports, StackWise 480 architecture, and Cisco DNA ready.',
     defaultPorts: Array.from({ length: 48 }, (_, i) => ({
@@ -174,7 +174,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   nexus9000: {
     type: 'nexus9000',
-    displayName: 'Cisco Nexus 9000 DC',
+    displayName: 'Nexus 9000 DC Switch (Emulated)',
     category: 'Switches',
     description: 'Data Center Spine/Leaf High-Density Switch. High-throughput line-rate switching for cloud fabrics.',
     defaultPorts: Array.from({ length: 16 }, (_, i) => ({
@@ -191,7 +191,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   // SECURITY & FIREWALLS
   firewall: {
     type: 'firewall',
-    displayName: 'Cisco ASA 5506-X',
+    displayName: 'ASA 5506-X Security (Emulated)',
     category: 'Security & Firewalls',
     description: 'Next-Gen Firewall with 4x Gigabit ports, security levels, stateful inspection, and DMZ segmentation.',
     defaultPorts: [
@@ -208,7 +208,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   firepower: {
     type: 'firepower',
-    displayName: 'Cisco Firepower 1010',
+    displayName: 'Firepower 1010 NGFW (Emulated)',
     category: 'Security & Firewalls',
     description: 'Next-Gen Threat Prevention Firewall. 8x Gigabit ports with integrated deep packet inspection and intrusion defense.',
     defaultPorts: [
@@ -227,7 +227,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   // WIRELESS & INFRASTRUCTURE
   wlc: {
     type: 'wlc',
-    displayName: 'Cisco 3504 WLC',
+    displayName: '3504 WLC Controller (Emulated)',
     category: 'Wireless & Infrastructure',
     description: 'Centralized Wireless LAN Controller. Manages access points, centralized WLAN SSIDs, and CAPWAP tunnels.',
     defaultPorts: [
@@ -244,7 +244,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   ap: {
     type: 'ap',
-    displayName: 'Cisco Aironet 3702 AP',
+    displayName: 'Aironet 3702 AP (Emulated)',
     category: 'Wireless & Infrastructure',
     description: 'Dual-Band 802.11ac Access Point. Connects wireless hosts to the wired backbone infrastructure.',
     defaultPorts: [
@@ -358,7 +358,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   server: {
     type: 'server',
-    displayName: 'Cisco Lab Server',
+    displayName: 'Enterprise Lab Server',
     category: 'End Devices',
     description: 'Multi-service host simulating DHCP IP leasing, DNS domain resolution, and HTTP Web portal.',
     defaultPorts: [
@@ -373,7 +373,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
   },
   ipphone: {
     type: 'ipphone',
-    displayName: 'Cisco 7960 IP Phone',
+    displayName: '7960 VoIP Phone (Emulated)',
     category: 'End Devices',
     description: 'Enterprise VoIP Phone with dual-port switch (PC daisy-chain & Switch PoE connection).',
     defaultPorts: [
@@ -453,14 +453,14 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
       dns: {
         enabled: true,
         records: [
-          { domain: 'cisco.com', ip: '192.168.1.10' },
-          { domain: 'netcraft.local', ip: '192.168.1.10' },
+          { domain: 'netsim.local', ip: '192.168.1.10' },
+          { domain: 'example.com', ip: '192.168.1.10' },
         ],
       },
       http: {
         enabled: true,
-        title: 'NetCraft Cisco Enterprise Portal',
-        body: 'Welcome to the Cisco CCNA Network Simulation Lab Web Server.',
+        title: 'NetSim Enterprise Portal',
+        body: 'Welcome to the NetSim Network Simulation Lab Web Server.',
       },
     };
   }

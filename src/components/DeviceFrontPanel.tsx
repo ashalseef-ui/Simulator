@@ -359,32 +359,32 @@ function renderFullFrontPanel(
           <div className="flex flex-col gap-2 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
-                <span className="text-[10px] font-black text-sky-400">C</span>
+                <span className="text-[10px] font-black text-sky-400">N</span>
               </div>
               <div>
                 <div className="text-xs font-black tracking-tight text-white uppercase">
                   {type === 'router'
-                    ? 'Cisco 2911 ISR'
+                    ? '2911 ISR (Emulated)'
                     : type === 'router4331'
-                    ? 'Cisco 4331 ISR'
+                    ? '4331 ISR (Emulated)'
                     : type === 'router1941'
-                    ? 'Cisco 1941 ISR'
+                    ? '1941 ISR (Emulated)'
                     : type === 'switch'
-                    ? 'Catalyst 2960-24TT'
+                    ? 'Catalyst 2960-24TT (Emulated)'
                     : type === 'switch3560'
-                    ? 'Catalyst 3560-24TS'
+                    ? 'Catalyst 3560-24TS (Emulated)'
                     : type === 'l3switch'
-                    ? 'Catalyst 3650-24PS'
+                    ? 'Catalyst 3650-24PS (Emulated)'
                     : type === 'nexus9000'
-                    ? 'Nexus 9300-EX'
+                    ? 'Nexus 9300-EX (Emulated)'
                     : type === 'firewall'
-                    ? 'Cisco ASA 5506-X'
+                    ? 'ASA 5506-X (Emulated)'
                     : type === 'firepower'
-                    ? 'Firepower 1010'
+                    ? 'Firepower 1010 (Emulated)'
                     : `${type.toUpperCase()} UNIT`}
                 </div>
                 <div className="text-[9px] font-mono text-slate-400">
-                  {isRouter ? 'Modular Integrated Services Router' : isSwitch ? 'Enterprise High-Speed Managed Switch' : 'Security Appliance'}
+                  {isRouter ? 'Modular Integrated Services Router (Simulation)' : isSwitch ? 'Enterprise Managed Switch (Simulation)' : 'Security Appliance (Simulation)'}
                 </div>
               </div>
             </div>
