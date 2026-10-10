@@ -3,6 +3,7 @@ import {
   Device,
   DeviceConfig,
   DeviceWindowState,
+  Link,
 } from '../types/network';
 import { DEVICE_SPECS } from '../engine/deviceSpecs';
 import {
@@ -36,6 +37,7 @@ import { isValidIp } from '../utils/ipUtils';
 interface DeviceInspectorProps {
   device: Device;
   allDevices: Device[];
+  allLinks?: Link[];
   windowState: DeviceWindowState;
   onUpdateWindowState: (id: string, updates: Partial<DeviceWindowState>) => void;
   onClose: (id: string) => void;
@@ -47,6 +49,7 @@ interface DeviceInspectorProps {
 export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   device,
   allDevices,
+  allLinks = [],
   windowState,
   onUpdateWindowState,
   onClose,
@@ -216,7 +219,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       device,
       allDevices,
       cliSession,
-      (newConfig) => onUpdateDeviceConfig(device.id, newConfig)
+      (newConfig) => onUpdateDeviceConfig(device.id, newConfig),
+      allLinks
     );
 
     if (result.output) {
