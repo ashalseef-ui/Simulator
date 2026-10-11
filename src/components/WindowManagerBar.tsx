@@ -66,7 +66,7 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
           >
             <span>Educational Simulator</span>
             <span className="text-slate-600">•</span>
-            <span className="hidden md:inline">Not affiliated with Cisco</span>
+            <span className="hidden md:inline">Legal & Trademarks</span>
           </button>
         )}
         {windowList.length > 0 && (

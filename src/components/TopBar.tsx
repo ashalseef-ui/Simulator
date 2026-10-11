@@ -17,6 +17,7 @@ import {
   Bot,
   Flame,
 } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 
 interface TopBarProps {
   canUndo: boolean;
@@ -89,9 +90,9 @@ export const TopBar: React.FC<TopBarProps> = ({
       />
       <div className="flex items-center gap-3">
         {/* Logo/Title */}
-        <div className="flex items-center gap-2 mr-4">
-          <Network className="w-5 h-5 text-sky-400" />
-          <h1 className="text-sm font-bold text-white hidden sm:block">NetT-Sim</h1>
+        <div className="flex items-center gap-2 mr-6 shrink-0">
+          <Network className="w-5 h-5 text-sky-400 shrink-0" />
+          <h1 className="text-sm font-bold text-white whitespace-nowrap hidden sm:block">NetT-Sim</h1>
         </div>
 
         {/* File Menu Dropdown */}
@@ -205,87 +206,99 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
         </button>
 
-        <button
-          onClick={onOpenSocratic}
-          className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-purple-500/10"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-          <span>Socratic AI Mentor</span>
-        </button>
+        <Tooltip content="Socratic AI Mentor">
+          <button
+            onClick={onOpenSocratic}
+            className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-purple-500/10"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <span>Socratic AI Mentor</span>
+          </button>
+        </Tooltip>
 
-        <button
-          onClick={onOpenPresets}
-          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <LayoutTemplate className="w-3.5 h-3.5" />
-          Topologies
-        </button>
+        <Tooltip content="Browse Network Topologies">
+          <button
+            onClick={onOpenPresets}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <LayoutTemplate className="w-3.5 h-3.5" />
+            Topologies
+          </button>
+        </Tooltip>
 
-        <button
-          onClick={onOpenSubnetCalc}
-          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <Binary className="w-3.5 h-3.5" />
-          Subnet Studio
-        </button>
+        <Tooltip content="Calculate IPv4 Subnets">
+          <button
+            onClick={onOpenSubnetCalc}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Binary className="w-3.5 h-3.5" />
+            Subnet Studio
+          </button>
+        </Tooltip>
 
-        <button
-          onClick={onOpenPacketInspector}
-          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-            simulationStepCount > 0
-              ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse'
-              : 'bg-slate-800 hover:bg-slate-700/80 border-slate-700 text-slate-300'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          PDU Inspector
-          {simulationStepCount > 0 && (
-            <span className="w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">
-              {simulationStepCount}
-            </span>
-          )}
-        </button>
+        <Tooltip content="Analyze Packet Flow">
+          <button
+            onClick={onOpenPacketInspector}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              simulationStepCount > 0
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse'
+                : 'bg-slate-800 hover:bg-slate-700/80 border-slate-700 text-slate-300'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            PDU Inspector
+            {simulationStepCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">
+                {simulationStepCount}
+              </span>
+            )}
+          </button>
+        </Tooltip>
 
         {onOpenTextToTopology && (
-          <button
-            onClick={onOpenTextToTopology}
-            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all cursor-pointer"
-            title="Synthesize an entire interactive network lab from a plain English prompt"
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            <span>AI Lab Architect</span>
-          </button>
+          <Tooltip content="Synthesize Lab from Prompt">
+            <button
+              onClick={onOpenTextToTopology}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              <span>AI Lab Architect</span>
+            </button>
+          </Tooltip>
         )}
 
-        <button
-          onClick={onOpenAiStudio}
-          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-          title="Generate schematic architecture diagrams"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-          <span className="hidden xl:inline">Diagram Studio</span>
-        </button>
+        <Tooltip content="Generate Architecture Diagram">
+          <button
+            onClick={onOpenAiStudio}
+            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden xl:inline">Diagram Studio</span>
+          </button>
+        </Tooltip>
 
         {onOpenMascot && (
-          <button
-            onClick={onOpenMascot}
-            className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Meet Packet Pete - Your Study Mascot"
-          >
-            <Bot className="w-3.5 h-3.5 text-sky-400 animate-bounce" />
-            <span className="hidden md:inline">Packet Pete</span>
-          </button>
+          <Tooltip content="Meet Packet Pete">
+            <button
+              onClick={onOpenMascot}
+              className="px-2.5 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Bot className="w-3.5 h-3.5 text-sky-400 animate-bounce" />
+              <span className="hidden md:inline">Packet Pete</span>
+            </button>
+          </Tooltip>
         )}
 
         {onOpenChaos && (
-          <button
-            onClick={onOpenChaos}
-            className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Chaos Monkey Battle Mode - Timed CCNA Fault Troubleshooting Games"
-          >
-            <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-            <span className="hidden xl:inline">Chaos Battle</span>
-          </button>
+          <Tooltip content="Chaos Troubleshooting Challenge">
+            <button
+              onClick={onOpenChaos}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span className="hidden xl:inline">Chaos Battle</span>
+            </button>
+          </Tooltip>
         )}
       </div>
 

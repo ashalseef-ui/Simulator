@@ -1020,7 +1020,7 @@ export function executeCliCommand(
       return { output: '', newSession };
     }
 
-    // Cisco Switch Stacking (StackWise) Commands
+    // Switch Stacking Commands
     if (cmd === 'switch') {
       const memberId = parseInt(tokens[1], 10);
       const subAction = tokens[2]?.toLowerCase();

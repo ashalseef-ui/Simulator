@@ -10,7 +10,7 @@ interface DeviceFrontPanelProps {
 }
 
 /**
- * Realistic Front Panel Component for Cisco & Enterprise Networking Equipment
+ * Realistic Front Panel Component for Enterprise Networking Equipment
  * Supports:
  * - 'compact' / 'thumbnail': High-fidelity mini rack faceplate for canvas cards & drawer thumbnails
  * - 'full': Full-scale realistic 1U/2U physical rack unit front panel for physical view inspection

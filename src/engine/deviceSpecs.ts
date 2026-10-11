@@ -161,7 +161,7 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
     type: 'switch9300',
     displayName: 'Catalyst 9300-48P Switch (Emulated)',
     category: 'Switches',
-    description: 'Flagship Enterprise Catalyst Access/Core Switch. 48 Gigabit Ethernet ports, StackWise 480 architecture, and Cisco DNA ready.',
+    description: 'Flagship Enterprise Access/Core Switch. 48 Gigabit Ethernet ports, Stackable architecture, and network orchestration ready.',
     defaultPorts: Array.from({ length: 48 }, (_, i) => ({
       name: `Gi1/0/${i + 1}`,
       speed: 1000 as const,
@@ -408,7 +408,7 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
   const isRouterType = type === 'router' || type === 'router4331' || type === 'router1941' || type === 'firewall' || type === 'firepower';
 
   spec.defaultPorts.forEach((p) => {
-    // Routers and Firewalls default to administratively shutdown in Cisco IOS
+    // Routers and Firewalls default to administratively shutdown in IOS-compatible CLI
     // Switches and End Devices default to up
     const isShutdownDefault = isRouterType;
     interfaces[p.name] = {
