@@ -266,6 +266,7 @@ export interface DeviceConfig {
   ipv6RoutingEnabled?: boolean;
   ipv6Routes?: { prefix: string; nextHop: string }[];
   spanningTreePriority?: number;
+  spanningTreeVlanPriority?: Record<number, number>;
   spanningTreeMode?: string;
   portfastDefault?: boolean;
   bpduguardDefault?: boolean;
@@ -340,6 +341,8 @@ export interface StpPortInfo {
   role: 'ROOT' | 'DESG' | 'ALTN';
   state: 'FWD' | 'BLK' | 'LIS' | 'LRN';
   cost: number;
+  edge?: boolean;
+  vlan?: number;
 }
 
 export interface StpTopologyState {
@@ -347,6 +350,8 @@ export interface StpTopologyState {
   rootBridgePriority: number;
   rootBridgeMac: string;
   ports: Record<string, StpPortInfo>; // key: `${deviceId}:${port}`
+  vlan?: number;
+  vlans?: Record<number, StpTopologyState>; // Per-VLAN instances (PVST+)
 }
 
 export interface PacketL2Frame {

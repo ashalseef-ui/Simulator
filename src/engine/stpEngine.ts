@@ -1,9 +1,23 @@
 import { Device, Link, StpPortInfo, StpTopologyState } from '../types/network';
 
 const isSwitchType = (type: string) =>
-  type === 'switch' || type === 'switch2960_48' || type === 'switch3560' || type === 'switch3850' || type === 'switch9300' || type === 'l3switch' || type === 'nexus9000';
+  type === 'switch' ||
+  type === 'switch2960_48' ||
+  type === 'switch3560' ||
+  type === 'switch3850' ||
+  type === 'switch9300' ||
+  type === 'l3switch' ||
+  type === 'nexus9000';
 
-export function calculateStp(devices: Device[], links: Link[], targetVlan: number = 1): StpTopologyState {
+/**
+ * Calculates Spanning Tree Protocol (802.1D / PVST+) state for a specific VLAN.
+ * Computes:
+ * - Root Bridge election (lowest Bridge ID = priority + system-id-ext [vlan] : MAC)
+ * - Root Port selection per switch (path cost, upstream bridge ID, upstream port ID)
+ * - Designated Port vs Alternate Blocking Port election per segment
+ * - PortFast edge port identification
+ */
+export function calculateStp(devices: Device[], links: Link[], targetVlan = 1): StpTopologyState {
   const switchDevices = devices.filter((d) => isSwitchType(d.type));
 
   const portsState: Record<string, StpPortInfo> = {};
@@ -11,20 +25,26 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
   if (switchDevices.length === 0) {
     return {
       rootBridgeId: '',
-      rootBridgePriority: 32768,
+      rootBridgePriority: 32768 + targetVlan,
       rootBridgeMac: '',
       ports: portsState,
+      vlan: targetVlan,
     };
   }
 
-  // Get primary MAC for switch (first interface or config)
+  // Get base MAC for switch (first interface mac or config)
   const getSwitchMac = (dev: Device): string => {
     const firstPort = Object.values(dev.config.interfaces)[0];
     return firstPort ? firstPort.mac : '00:00:00:00:00:00';
   };
 
+  // Bridge ID calculation honoring Per-VLAN Priority + System ID Extension
   const getSwitchBridgeId = (dev: Device): { priority: number; mac: string; str: string } => {
-    const priority = (dev.config.spanningTreePriority ?? 32768) + targetVlan;
+    const basePrio =
+      dev.config.spanningTreeVlanPriority?.[targetVlan] ??
+      dev.config.spanningTreePriority ??
+      32768;
+    const priority = basePrio + targetVlan;
     const mac = getSwitchMac(dev);
     return {
       priority,
@@ -33,7 +53,7 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     };
   };
 
-  // 1. Elect Root Bridge (Lowest Bridge ID)
+  // 1. Elect Root Bridge for this VLAN (Lowest Bridge ID)
   let rootSwitch = switchDevices[0];
   let minBridgeId = getSwitchBridgeId(rootSwitch);
 
@@ -45,25 +65,37 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     }
   }
 
-  // Cost per interface speed: Fa=19, Gi=4
+  // Cost per interface speed: Fa=19, Gi=4, 10G=2
   const getPortCost = (dev: Device, portName: string): number => {
     const iface = dev.config.interfaces[portName];
     if (!iface) return 19;
-    return iface.speed === 1000 ? 4 : 19;
+    return iface.speed === 1000 ? 4 : iface.speed === 10000 ? 2 : 19;
   };
 
-  // Filter links connecting two switches
+  // Filter links connecting two switches that allow targetVlan
   const switchLinks = links.filter((link) => {
     const devA = devices.find((d) => d.id === link.fromDevice);
     const devB = devices.find((d) => d.id === link.toDevice);
     if (!devA || !devB) return false;
-    return isSwitchType(devA.type) && isSwitchType(devB.type);
+    if (!isSwitchType(devA.type) || !isSwitchType(devB.type)) return false;
+
+    // Check trunk allowed VLAN filter
+    const ifaceA = devA.config.interfaces[link.fromPort];
+    const ifaceB = devB.config.interfaces[link.toPort];
+    if (ifaceA?.mode === 'trunk') {
+      const allowed = ifaceA.trunkAllowedVlans;
+      if (allowed && allowed.length > 0 && !allowed.includes(targetVlan)) return false;
+    }
+    if (ifaceB?.mode === 'trunk') {
+      const allowed = ifaceB.trunkAllowedVlans;
+      if (allowed && allowed.length > 0 && !allowed.includes(targetVlan)) return false;
+    }
+    return true;
   });
 
-  // Calculate Shortest Path to Root Bridge using Dijkstra / BFS
+  // Calculate Shortest Path to Root Bridge using Dijkstra
   const rootCostToSwitch: Record<string, number> = {};
   const rootPortOnSwitch: Record<string, string> = {};
-  // 802.1D tie-breakers for equal-cost root paths: lowest sender bridge ID, then lowest sender port ID
   const rootUpstream: Record<string, { bridge: string; port: string }> = {};
 
   switchDevices.forEach((sw) => {
@@ -73,7 +105,6 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
   const visited = new Set<string>();
 
   while (visited.size < switchDevices.length) {
-    // Find unvisited switch with lowest cost
     let currentId: string | null = null;
     let lowestCost = Infinity;
 
@@ -87,7 +118,7 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     if (!currentId || lowestCost === Infinity) break;
     visited.add(currentId);
 
-    // Explore neighbors
+    // Explore neighboring switches
     for (const link of switchLinks) {
       let neighborId: string | null = null;
       let neighborPort: string | null = null;
@@ -125,11 +156,10 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     }
   }
 
-  // 2. Assign Port Roles and States for all switch links
+  // 2. Assign Port Roles and States for all switch-to-switch links
   for (const sw of switchDevices) {
     const isRoot = sw.id === rootSwitch.id;
 
-    // Find links attached to this switch
     const attachedLinks = switchLinks.filter(
       (l) => l.fromDevice === sw.id || l.toDevice === sw.id
     );
@@ -145,25 +175,27 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
       const myCost = getPortCost(sw, myPort);
 
       if (isRoot) {
-        // Root bridge ports are always DESG and FWD
+        // Root bridge ports are always Designated (DESG) and Forwarding (FWD)
         portsState[myKey] = {
           deviceId: sw.id,
           port: myPort,
           role: 'DESG',
           state: 'FWD',
           cost: myCost,
+          vlan: targetVlan,
         };
       } else if (rootPortOnSwitch[sw.id] === myPort) {
-        // This is the Root Port for this switch
+        // This is the elected Root Port for this switch
         portsState[myKey] = {
           deviceId: sw.id,
           port: myPort,
           role: 'ROOT',
           state: 'FWD',
           cost: myCost,
+          vlan: targetVlan,
         };
       } else {
-        // Segment election between this switch and other switch
+        // Segment election between this switch and neighboring switch
         const myTotalCost = rootCostToSwitch[sw.id] || 0;
         const otherTotalCost = rootCostToSwitch[otherDevId] || 0;
         const myBridgeStr = getSwitchBridgeId(sw).str;
@@ -183,6 +215,7 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
             role: 'DESG',
             state: 'FWD',
             cost: myCost,
+            vlan: targetVlan,
           };
         } else {
           // Blocked Alternate port!
@@ -192,28 +225,34 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
             role: 'ALTN',
             state: 'BLK',
             cost: myCost,
+            vlan: targetVlan,
           };
         }
       }
     }
   }
 
-  // Edge ports (switch ports facing hosts/routers) are always DESG / FWD.
-  // Use the same switch predicate as the rest of the engine so 3560/3850/9300/Nexus are covered.
+  // 3. Edge ports facing hosts / routers (PortFast enabled or access edge)
   for (const link of links) {
     const devA = devices.find((d) => d.id === link.fromDevice);
     const devB = devices.find((d) => d.id === link.toDevice);
     if (!devA || !devB) continue;
     const aSw = isSwitchType(devA.type);
     const bSw = isSwitchType(devB.type);
-    if (aSw === bSw) continue; // switch-switch handled above, host-host irrelevant
+    if (aSw === bSw) continue; // Skip switch-switch links (handled above)
+
     const [sw, port] = aSw ? [devA, link.fromPort] : [devB, link.toPort];
+    const iface = sw.config.interfaces[port];
+    const isEdge = !!(iface?.portfast || sw.config.portfastDefault);
+
     portsState[`${sw.id}:${port}`] = {
       deviceId: sw.id,
       port,
       role: 'DESG',
       state: 'FWD',
       cost: getPortCost(sw, port),
+      edge: isEdge,
+      vlan: targetVlan,
     };
   }
 
@@ -222,5 +261,73 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan: numbe
     rootBridgePriority: minBridgeId.priority,
     rootBridgeMac: minBridgeId.mac,
     ports: portsState,
+    vlan: targetVlan,
   };
+}
+
+/**
+ * Computes Per-VLAN Spanning Tree (PVST+) across all active VLANs in the topology.
+ * Solves independent spanning tree instances per VLAN so that different VLANs
+ * can have distinct Root Bridges and alternate blocking ports (load balancing).
+ */
+export function calculatePvst(devices: Device[], links: Link[]): StpTopologyState {
+  const activeVlans = new Set<number>([1]);
+
+  // Discover all configured VLANs across all devices
+  devices.forEach((dev) => {
+    // Configured VLAN priorities
+    if (dev.config.spanningTreeVlanPriority) {
+      Object.keys(dev.config.spanningTreeVlanPriority).forEach((v) => activeVlans.add(parseInt(v, 10)));
+    }
+    // Switch VLAN database
+    if (dev.config.vlans) {
+      if (Array.isArray(dev.config.vlans)) {
+        (dev.config.vlans as any[]).forEach((vl) => activeVlans.add(typeof vl === 'number' ? vl : vl.id));
+      } else {
+        Object.keys(dev.config.vlans).forEach((k) => activeVlans.add(parseInt(k, 10)));
+      }
+    }
+    // Interface access and trunk VLANs
+    if (dev.config.interfaces) {
+      Object.values(dev.config.interfaces).forEach((iface) => {
+        if (iface.accessVlan) activeVlans.add(iface.accessVlan);
+        if (iface.trunkAllowedVlans) iface.trunkAllowedVlans.forEach((v) => activeVlans.add(v));
+      });
+    }
+  });
+
+  const vlansMap: Record<number, StpTopologyState> = {};
+
+  activeVlans.forEach((vlanId) => {
+    vlansMap[vlanId] = calculateStp(devices, links, vlanId);
+  });
+
+  // Base state defaults to VLAN 1 for backward compatibility
+  const defaultState = vlansMap[1] || calculateStp(devices, links, 1);
+
+  return {
+    ...defaultState,
+    vlans: vlansMap,
+  };
+}
+
+/**
+ * Resolves the exact STP port state for a specific VLAN.
+ * Checks per-VLAN instance first, then falls back to base VLAN 1.
+ */
+export function getStpPortState(
+  stpTopology: StpTopologyState | undefined,
+  deviceId: string,
+  port: string,
+  vlanId = 1
+): StpPortInfo | undefined {
+  if (!stpTopology) return undefined;
+
+  const key = `${deviceId}:${port}`;
+  if (stpTopology.vlans && stpTopology.vlans[vlanId]) {
+    const vlanPort = stpTopology.vlans[vlanId].ports[key];
+    if (vlanPort) return vlanPort;
+  }
+
+  return stpTopology.ports[key];
 }

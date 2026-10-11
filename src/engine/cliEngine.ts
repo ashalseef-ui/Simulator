@@ -1,8 +1,13 @@
 import { Device, DeviceConfig, Link } from '../types/network';
 import { isValidIp, maskToCidr, getNetworkAddress } from '../utils/ipUtils';
-import { calculateStp } from './stpEngine';
+import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
 import { computeOspf, formatNeighborTable, formatOspfRoute, OspfRoute } from './ospfEngine';
 import { simulatePing } from './simulationEngine';
+import { CommandTrie } from './cli/commandTrie';
+import { COMMAND_TREE_REGISTRY } from './cli/commandTreeRegistry';
+
+export const commandTrie = new CommandTrie();
+commandTrie.registerAll(COMMAND_TREE_REGISTRY);
 
 export type CliMode =
   | 'user'
@@ -163,7 +168,11 @@ export function executeCliCommand(
 
   // Check help '?'
   if (line.endsWith('?')) {
-    const helpText = getContextHelp(line.slice(0, -1).trim(), session.mode, device);
+    const rawPrefix = line.slice(0, -1).trim();
+    const trieHelp = commandTrie.getHelp(session.mode, rawPrefix ? rawPrefix.split(/\s+/) : []);
+    const helpText = trieHelp.startsWith('%')
+      ? getContextHelp(rawPrefix, session.mode, device)
+      : trieHelp;
     return { output: helpText, newSession };
   }
 
@@ -269,7 +278,7 @@ export function executeCliCommand(
     }
     if (cmd === 'reload') {
       return {
-        output: 'Proceed with reload? [confirm]\nSystem restarted.\nNetSim IOS-Compatible Engine, Version 15.4(3)M2\nReady.',
+        output: 'Proceed with reload? [confirm]\nSystem restarted.\nNetT-Sim IOS-Compatible Engine, Version 15.4(3)M2\nReady.',
         newSession,
       };
     }
@@ -913,13 +922,19 @@ export function executeCliCommand(
       return { output: '', newSession };
     }
 
-    // spanning-tree vlan <id> priority <val>
+    // spanning-tree vlan <id> priority <val> / root primary / root secondary
     if (cmd === 'spanning-tree' && tokens[1] === 'vlan') {
+      const vlanId = parseInt(tokens[2], 10) || 1;
       const prioIdx = tokens.indexOf('priority');
+      const rootIdx = tokens.indexOf('root');
+
+      if (!config.spanningTreeVlanPriority) config.spanningTreeVlanPriority = {};
+
       if (prioIdx !== -1 && tokens[prioIdx + 1]) {
         const prio = parseInt(tokens[prioIdx + 1], 10);
         if (!isNaN(prio) && prio % 4096 === 0) {
-          config.spanningTreePriority = prio;
+          config.spanningTreeVlanPriority[vlanId] = prio;
+          if (vlanId === 1) config.spanningTreePriority = prio;
           onConfigChange(config);
           return { output: '', newSession };
         } else {
@@ -928,6 +943,15 @@ export function executeCliCommand(
             newSession,
           };
         }
+      }
+
+      if (rootIdx !== -1 && tokens[rootIdx + 1]) {
+        const rootType = tokens[rootIdx + 1].toLowerCase();
+        const prio = rootType === 'primary' ? 24576 : rootType === 'secondary' ? 28672 : 32768;
+        config.spanningTreeVlanPriority[vlanId] = prio;
+        if (vlanId === 1) config.spanningTreePriority = prio;
+        onConfigChange(config);
+        return { output: '', newSession };
       }
     }
 
@@ -2041,27 +2065,67 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
 
-  // show spanning-tree
+  // show spanning-tree (PVST+ Per-VLAN Spanning Tree)
   if (sub.startsWith('span') || sub.startsWith('spanning-tree')) {
-    const stp = calculateStp(allDevices, allLinks, 1);
-    const prio = device.config.spanningTreePriority ?? 32768;
-    const isRoot = stp.rootBridgeId === device.id;
-    let out = `VLAN0001\n  Spanning tree enabled protocol ieee\n`;
-    out += `  Root ID    Priority    ${stp.rootBridgePriority}\n             Address     ${stp.rootBridgeMac}\n`;
-    if (isRoot) {
-      out += `             This bridge is the root\n`;
+    const pvst = calculatePvst(allDevices, allLinks);
+    const vlanTokens = sub.split(/\s+/);
+    const vlanIdx = vlanTokens.indexOf('vlan');
+    const targetVlans: number[] = [];
+
+    if (vlanIdx !== -1 && vlanTokens[vlanIdx + 1]) {
+      const v = parseInt(vlanTokens[vlanIdx + 1], 10);
+      if (!isNaN(v)) targetVlans.push(v);
     }
-    out += `  Bridge ID  Priority    ${prio + 1}  (priority ${prio} sys-id-ext 1)\n             Address     ${Object.values(device.config.interfaces)[0]?.mac || '001c.b100.0001'}\n\n`;
-    out += `Interface           Role Sts Cost      Prio.Nbr Type\n------------------- ---- --- --------- -------- --------------------------------\n`;
-    for (const [name, iface] of Object.entries(device.config.interfaces)) {
-      if (iface.status === 'up') {
-        const key = `${device.id}:${name}`;
-        const pInfo = stp.ports[key];
-        const role = pInfo?.role || (isRoot ? 'DESG' : 'DESG');
-        const state = pInfo?.state || 'FWD';
-        const cost = pInfo?.cost || (iface.speed === 1000 ? 4 : 19);
-        out += `${name.padEnd(19)} ${role.padEnd(4)} ${state.padEnd(3)} ${String(cost).padEnd(9)} 128.1    P2p\n`;
+
+    if (targetVlans.length === 0) {
+      const vlSet = new Set<number>([1]);
+      if (device.config.spanningTreeVlanPriority) {
+        Object.keys(device.config.spanningTreeVlanPriority).forEach((k) => vlSet.add(parseInt(k, 10)));
       }
+      if (device.config.vlans) {
+        Object.values(device.config.vlans).forEach((vl) => vlSet.add(vl.id));
+      }
+      Object.values(device.config.interfaces).forEach((i) => {
+        if (i.accessVlan) vlSet.add(i.accessVlan);
+        if (i.trunkAllowedVlans) i.trunkAllowedVlans.forEach((v) => vlSet.add(v));
+      });
+      targetVlans.push(...Array.from(vlSet).sort((a, b) => a - b));
+    }
+
+    let out = '';
+    for (const vlanId of targetVlans) {
+      const stp = pvst.vlans?.[vlanId] || calculateStp(allDevices, allLinks, vlanId);
+      const basePrio = device.config.spanningTreeVlanPriority?.[vlanId] ?? device.config.spanningTreePriority ?? 32768;
+      const isRoot = stp.rootBridgeId === device.id;
+      const vlanPad = String(vlanId).padStart(4, '0');
+
+      out += `VLAN${vlanPad}\n  Spanning tree enabled protocol ieee\n`;
+      out += `  Root ID    Priority    ${stp.rootBridgePriority}\n             Address     ${stp.rootBridgeMac}\n`;
+      if (isRoot) {
+        out += `             This bridge is the root\n`;
+      }
+      out += `  Bridge ID  Priority    ${basePrio + vlanId}  (priority ${basePrio} sys-id-ext ${vlanId})\n             Address     ${Object.values(device.config.interfaces)[0]?.mac || '001c.b100.0001'}\n\n`;
+      out += `Interface           Role Sts Cost      Prio.Nbr Type\n------------------- ---- --- --------- -------- --------------------------------\n`;
+
+      for (const [name, iface] of Object.entries(device.config.interfaces)) {
+        if (iface.status === 'up') {
+          if (iface.mode === 'trunk' && iface.trunkAllowedVlans && iface.trunkAllowedVlans.length > 0 && !iface.trunkAllowedVlans.includes(vlanId)) {
+            continue;
+          }
+          if (iface.mode === 'access' && (iface.accessVlan || 1) !== vlanId) {
+            continue;
+          }
+
+          const key = `${device.id}:${name}`;
+          const pInfo = stp.ports[key];
+          const role = pInfo?.role || (isRoot ? 'DESG' : 'DESG');
+          const state = pInfo?.state || 'FWD';
+          const cost = pInfo?.cost || (iface.speed === 1000 ? 4 : 19);
+          const typeStr = pInfo?.edge ? 'P2p Edge' : 'P2p';
+          out += `${name.padEnd(19)} ${role.padEnd(4)} ${state.padEnd(3)} ${String(cost).padEnd(9)} 128.1    ${typeStr}\n`;
+        }
+      }
+      out += '\n';
     }
     return { output: out.trimEnd(), newSession: session };
   }

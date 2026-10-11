@@ -7,9 +7,10 @@ import {
   DeviceType,
   DeviceWindowState,
   SimulationStep,
+  StpTopologyState,
 } from './types/network';
 import { createDevice, validateCabling } from './engine/deviceSpecs';
-import { calculateStp } from './engine/stpEngine';
+import { calculateStp, calculatePvst } from './engine/stpEngine';
 import { simulatePing, simulateDhcp } from './engine/simulationEngine';
 import { tileWindows, cascadeWindows } from './utils/windowLayout';
 import { LAB_SCENARIOS } from './data/labs';
@@ -32,9 +33,11 @@ import { SocraticMentorModal } from './components/SocraticMentorModal';
 import { AboutLegalModal } from './components/AboutLegalModal';
 import { TextToTopologyModal } from './components/TextToTopologyModal';
 import { MascotGuideModal } from './components/MascotGuideModal';
-import { ChaosBattleModal } from './components/ChaosBattleModal';
+import { ChaosBattleModal, ChaosChallenge } from './components/ChaosBattleModal';
+import { VirtualClockTelemetryBar } from './components/VirtualClockTelemetryBar';
+import { workerBridge } from './engine/workerBridge';
 import { IncidentScenario } from './data/incidentScenarios';
-import { X } from 'lucide-react';
+import { X, Flame, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   // Open with Empty Canvas
@@ -167,20 +170,106 @@ export default function App() {
     }
   };
 
-  const handleDeployChaosChallenge = (newDevices: Device[], newLinks: Link[], _title: string) => {
-    setDevices(newDevices);
-    setLinks(newLinks);
+  // Active Chaos Battle Scenario
+  const [activeChaosChallenge, setActiveChaosChallenge] = useState<ChaosChallenge | null>(null);
+  const [chaosTimeLeft, setChaosTimeLeft] = useState<number>(300);
+  const [chaosIsCompleted, setChaosIsCompleted] = useState<boolean>(false);
+  const [chaosScoreEarned, setChaosScoreEarned] = useState<number>(0);
+  const [chaosFeedbackMessage, setChaosFeedbackMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let timer: any;
+    if (activeChaosChallenge && !chaosIsCompleted && chaosTimeLeft > 0) {
+      timer = setInterval(() => {
+        setChaosTimeLeft((prev) => {
+          if (prev <= 1) {
+            setChaosFeedbackMessage({
+              type: 'error',
+              text: 'SLA Expired! Outage exceeded SLA window. Reset challenge to try again.',
+            });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [activeChaosChallenge, chaosIsCompleted, chaosTimeLeft]);
+
+  const handleStartChaosChallenge = (challenge: ChaosChallenge) => {
+    const topo = challenge.initialTopology();
+    setDevices(topo.devices);
+    setLinks(topo.links);
     setDeviceWindows({});
     setSimulationSteps([]);
     setActiveIncident(null);
     setSelectedDeviceId(null);
     setSelectedLinkId(null);
-    pushHistory(newDevices, newLinks);
+    pushHistory(topo.devices, topo.links);
+
+    setActiveChaosChallenge(challenge);
+    setChaosTimeLeft(300);
+    setChaosIsCompleted(false);
+    setChaosScoreEarned(0);
+    setChaosFeedbackMessage(null);
+    setShowChaosModal(false); // Close modal so student can immediately troubleshoot on canvas
   };
 
-  // STP Engine recalculation
-  const stpState = useMemo(() => {
-    return calculateStp(devices, links, 1);
+  const handleVerifyChaosFix = () => {
+    if (!activeChaosChallenge) return;
+    const passed = activeChaosChallenge.validator(devices);
+    if (passed) {
+      const bonus = Math.round(chaosTimeLeft * 1.5);
+      const base =
+        activeChaosChallenge.difficulty === 'Junior'
+          ? 500
+          : activeChaosChallenge.difficulty === 'Senior'
+          ? 1000
+          : 2000;
+      const totalScore = base + bonus;
+      setChaosIsCompleted(true);
+      setChaosScoreEarned(totalScore);
+      setChaosFeedbackMessage({
+        type: 'success',
+        text: `Remediation Verified! You earned +${totalScore} XP PTS!`,
+      });
+      setShowChaosModal(true); // Open modal to celebrate victory
+    } else {
+      setChaosFeedbackMessage({
+        type: 'error',
+        text: 'Fault still present! Inspect device configs and network states.',
+      });
+    }
+  };
+
+  const handleResetChaosChallenge = () => {
+    if (!activeChaosChallenge) return;
+    handleStartChaosChallenge(activeChaosChallenge);
+  };
+
+  const handleExitChaosChallenge = () => {
+    setActiveChaosChallenge(null);
+    setChaosIsCompleted(false);
+    setChaosScoreEarned(0);
+    setChaosFeedbackMessage(null);
+  };
+
+  // STP & OSPF Engine: Asynchronously solved off-thread in Web Worker (PVST+)
+  const [stpState, setStpState] = useState<StpTopologyState>(() => calculatePvst(devices, links));
+
+  useEffect(() => {
+    let isSubscribed = true;
+    workerBridge.solveTopology(devices, links).then((res) => {
+      if (isSubscribed) {
+        setStpState(res.stpState);
+      }
+    });
+    return () => {
+      isSubscribed = false;
+    };
   }, [devices, links]);
 
   // Simulation step playback timer
@@ -449,9 +538,9 @@ export default function App() {
     );
   };
 
-  // Run ICMP Ping Simulation
-  const handleRunPingSim = (srcDeviceId: string, dstIp: string) => {
-    const sim = simulatePing(srcDeviceId, dstIp, devices, links);
+  // Run ICMP Ping Simulation (Offloaded to Web Worker)
+  const handleRunPingSim = async (srcDeviceId: string, dstIp: string) => {
+    const sim = await workerBridge.simulatePingAsync(srcDeviceId, dstIp, devices, links);
     if (sim.steps.length > 0) {
       setSimulationSteps(sim.steps);
       setCurrentStepIndex(0);
@@ -459,9 +548,9 @@ export default function App() {
     }
   };
 
-  // Run DHCP DORA Simulation
-  const handleRunDhcpSim = (clientDeviceId: string) => {
-    const sim = simulateDhcp(clientDeviceId, devices, links);
+  // Run DHCP DORA Simulation (Offloaded to Web Worker)
+  const handleRunDhcpSim = async (clientDeviceId: string) => {
+    const sim = await workerBridge.simulateDhcpAsync(clientDeviceId, devices, links);
     if (sim.steps.length > 0) {
       setSimulationSteps(sim.steps);
       setCurrentStepIndex(0);
@@ -615,7 +704,7 @@ export default function App() {
       {/* Main Workspace: Palette Sidebar + Infinite Canvas */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Active Incident Outage Banner */}
-        {activeIncident && (
+        {activeIncident && !activeChaosChallenge && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 border border-amber-500/50 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg shadow-amber-500/10 flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
@@ -639,6 +728,73 @@ export default function App() {
                 title="Clear Incident Banner"
               >
                 <X className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Active Chaos Battle Outage HUD */}
+        {activeChaosChallenge && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-amber-500/60 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl shadow-amber-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <Flame className="w-4 h-4 animate-pulse" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-extrabold text-white">
+                    Chaos Battle: {activeChaosChallenge.title}
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-extrabold border ${
+                      chaosTimeLeft <= 60
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    {Math.floor(chaosTimeLeft / 60)}:
+                    {(chaosTimeLeft % 60).toString().padStart(2, '0')} SLA
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 truncate max-w-[280px]">
+                  {chaosFeedbackMessage ? (
+                    <span
+                      className={
+                        chaosFeedbackMessage.type === 'success'
+                          ? 'text-emerald-400 font-bold'
+                          : 'text-rose-400 font-bold'
+                      }
+                    >
+                      {chaosFeedbackMessage.text}
+                    </span>
+                  ) : (
+                    activeChaosChallenge.description
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 pl-3 border-l border-slate-700">
+              {!chaosIsCompleted && (
+                <button
+                  onClick={handleVerifyChaosFix}
+                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold transition-all shadow cursor-pointer flex items-center gap-1"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Verify Fix
+                </button>
+              )}
+              <button
+                onClick={() => setShowChaosModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Briefing
+              </button>
+              <button
+                onClick={handleExitChaosChallenge}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
+                title="End Chaos Challenge"
+              >
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -711,6 +867,9 @@ export default function App() {
             />
           );
         })}
+
+        {/* Virtual Clock & Web Worker Telemetry HUD */}
+        <VirtualClockTelemetryBar />
       </div>
 
       {/* Bottom Desktop Taskbar */}
@@ -832,7 +991,16 @@ export default function App() {
       <ChaosBattleModal
         isOpen={showChaosModal}
         onClose={() => setShowChaosModal(false)}
-        onDeployChallenge={handleDeployChaosChallenge}
+        devices={devices}
+        activeChallenge={activeChaosChallenge}
+        timeLeft={chaosTimeLeft}
+        isCompleted={chaosIsCompleted}
+        scoreEarned={chaosScoreEarned}
+        onStartChallenge={handleStartChaosChallenge}
+        onVerifyFix={handleVerifyChaosFix}
+        onResetChallenge={handleResetChaosChallenge}
+        onExitChallenge={handleExitChaosChallenge}
+        feedbackMessage={chaosFeedbackMessage}
       />
 
       {errorMessage && (

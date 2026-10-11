@@ -6,7 +6,7 @@ import {
   AccessList,
 } from '../types/network';
 import { areSameSubnet, getNetworkAddress, ipToInt, maskToCidr } from '../utils/ipUtils';
-import { calculateStp } from './stpEngine';
+import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
 import { computeOspf, isOspfCapable, OspfRoute, OspfState, OSPF_AD } from './ospfEngine';
 
 interface RouteMatch {
@@ -258,8 +258,8 @@ export function simulatePing(
   const srcMac = srcIface.mac;
   const isLocalSubnet = areSameSubnet(srcIp, dstIp, srcMask);
 
-  // STP state calculation for active topology
-  const stpTopology = calculateStp(devices, links, 1);
+  // STP state calculation for active topology (Per-VLAN PVST+)
+  const stpTopology = calculatePvst(devices, links);
   const ospfState = computeOspf(devices, links, stpTopology);
 
   // Check Layer 3 Gateway on Source Host if destination is non-local
@@ -682,10 +682,10 @@ function findL2L3ForwardPath(
       if (egressIface && egressIface.status === 'down') continue;
       if (ingressIface && ingressIface.status === 'down') continue;
 
-      // 2. STP Blocking Check
-      const stpEgress = stpTopology?.ports?.[`${currDev.id}:${egressPortName}`];
+      // 2. STP Blocking Check for current frame VLAN (PVST+)
+      const stpEgress = getStpPortState(stpTopology, currDev.id, egressPortName, current.currentVlan);
       if (stpEgress && stpEgress.state === 'BLK') continue;
-      const stpIngress = stpTopology?.ports?.[`${nextDev.id}:${ingressPortName}`];
+      const stpIngress = getStpPortState(stpTopology, nextDev.id, ingressPortName, current.currentVlan);
       if (stpIngress && stpIngress.state === 'BLK') continue;
 
       // 3. VLAN and Mode evaluation
