@@ -35,6 +35,7 @@ import { TextToTopologyModal } from './components/TextToTopologyModal';
 import { MascotGuideModal } from './components/MascotGuideModal';
 import { ChaosBattleModal, ChaosChallenge } from './components/ChaosBattleModal';
 import { VirtualClockTelemetryBar } from './components/VirtualClockTelemetryBar';
+import { CommandReferenceModal } from './components/CommandReferenceModal';
 import { workerBridge } from './engine/workerBridge';
 import { IncidentScenario } from './data/incidentScenarios';
 import { X, Flame, CheckCircle2 } from 'lucide-react';
@@ -111,6 +112,7 @@ export default function App() {
   const [showTextToTopologyModal, setShowTextToTopologyModal] = useState<boolean>(false);
   const [showMascotModal, setShowMascotModal] = useState<boolean>(true); // Open mascot tutorial on startup!
   const [showChaosModal, setShowChaosModal] = useState<boolean>(false);
+  const [showCommandsModal, setShowCommandsModal] = useState<boolean>(false);
 
   // Active Incident Scenario
   const [activeIncident, setActiveIncident] = useState<IncidentScenario | null>(null);
@@ -699,6 +701,7 @@ export default function App() {
         onOpenLegal={() => setShowLegalModal(true)}
         onOpenMascot={() => setShowMascotModal(true)}
         onOpenChaos={() => setShowChaosModal(true)}
+        onOpenCommands={() => setShowCommandsModal(true)}
       />
 
       {/* Main Workspace: Palette Sidebar + Infinite Canvas */}
@@ -1001,6 +1004,12 @@ export default function App() {
         onResetChallenge={handleResetChaosChallenge}
         onExitChallenge={handleExitChaosChallenge}
         feedbackMessage={chaosFeedbackMessage}
+      />
+
+      {/* Cisco IOS Command Master Reference Modal */}
+      <CommandReferenceModal
+        isOpen={showCommandsModal}
+        onClose={() => setShowCommandsModal(false)}
       />
 
       {errorMessage && (

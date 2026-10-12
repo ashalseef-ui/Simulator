@@ -161,4 +161,82 @@ describe('Hierarchical Command Trie & CLI Engine', () => {
       expect(verRes.output).toContain('not affiliated with Cisco Systems, Inc.');
     });
   });
+
+  describe('Cisco IOS Pipe Output Modifiers (| include, exclude, begin, section, count)', () => {
+    it('filters output with | include', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
+      const res = executeCliCommand('show ip interface brief | include Gi0/0', router, allDevices, session, onConfigChange, allLinks);
+      expect(res.output).toContain('Gi0/0');
+      expect(res.output).not.toContain('Gi0/1');
+    });
+
+    it('filters output with | exclude', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
+      const res = executeCliCommand('show ip interface brief | exclude Gi0/0', router, allDevices, session, onConfigChange, allLinks);
+      expect(res.output).not.toContain('Gi0/0 ');
+      expect(res.output).toContain('Gi0/1');
+    });
+
+    it('filters output with | begin', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
+      const res = executeCliCommand('show running-config | begin interface', router, allDevices, session, onConfigChange, allLinks);
+      expect(res.output.trim().startsWith('interface')).toBe(true);
+    });
+
+    it('filters output with | count', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
+      const res = executeCliCommand('show ip interface brief | count', router, allDevices, session, onConfigChange, allLinks);
+      expect(res.output).toContain('Number of lines:');
+    });
+
+    it('provides pipe modifier help on | ?', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
+      const res = executeCliCommand('show running-config | ?', router, allDevices, session, onConfigChange, allLinks);
+      expect(res.output).toContain('include');
+      expect(res.output).toContain('exclude');
+      expect(res.output).toContain('begin');
+      expect(res.output).toContain('section');
+      expect(res.output).toContain('count');
+    });
+
+    it('verifies dynamic trunk allowed vlans in show interfaces trunk', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+      session = executeCliCommand('configure terminal', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+      session = executeCliCommand('interface Gi0/1', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('switchport mode trunk', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('switchport trunk allowed vlan 10,20', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('end', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+
+      const res = executeCliCommand('show interfaces trunk', switchDev, allDevices, session, onConfigChange, allLinks);
+      expect(res.output).toContain('Gi0/1');
+      expect(res.output).toContain('trunking');
+      expect(res.output).toContain('10,20');
+    });
+
+    it('verifies show port-security and show port-security interface', () => {
+      let session = createCliSession();
+      session = executeCliCommand('enable', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+      session = executeCliCommand('configure terminal', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+      session = executeCliCommand('interface Fa0/1', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('switchport mode access', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('switchport port-security', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('switchport port-security maximum 3', switchDev, allDevices, session, (cfg) => { switchDev.config = cfg; }, allLinks).newSession;
+      session = executeCliCommand('end', switchDev, allDevices, session, onConfigChange, allLinks).newSession;
+
+      const summaryRes = executeCliCommand('show port-security', switchDev, allDevices, session, onConfigChange, allLinks);
+      expect(summaryRes.output).toContain('Fa0/1');
+      expect(summaryRes.output).toContain('3');
+
+      const intRes = executeCliCommand('show port-security interface Fa0/1', switchDev, allDevices, session, onConfigChange, allLinks);
+      expect(intRes.output).toContain('Port Security              : Enabled');
+      expect(intRes.output).toContain('Maximum MAC Addresses      : 3');
+    });
+  });
 });
+

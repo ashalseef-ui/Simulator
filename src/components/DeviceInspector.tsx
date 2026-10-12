@@ -29,9 +29,15 @@ import {
   Trash2,
   Loader2,
   Layers,
+  Shield,
+  ShieldAlert,
+  ChevronDown,
+  ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 import { DeviceFrontPanel } from './DeviceFrontPanel';
 import { StackingView } from './StackingView';
+import { CommandReferenceModal } from './CommandReferenceModal';
 import { isValidIp } from '../utils/ipUtils';
 
 interface DeviceInspectorProps {
@@ -128,6 +134,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     ];
   });
   const [cliInput, setCliInput] = useState('');
+  const [isCommandReferenceOpen, setIsCommandReferenceOpen] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -252,19 +259,261 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       }
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      // Simple tab autocomplete for common commands
+      const current = cliInput.trim();
+      // Handle pipe autocompletion e.g. "show run | inc" -> "show run | include"
+      const pipeIdx = cliInput.indexOf('|');
+      if (pipeIdx !== -1) {
+        const prePipe = cliInput.slice(0, pipeIdx + 1);
+        const postPipe = cliInput.slice(pipeIdx + 1).trim();
+        const pipeModifiers: Record<string, string> = {
+          'i': 'include ',
+          'inc': 'include ',
+          'e': 'exclude ',
+          'ex': 'exclude ',
+          'exc': 'exclude ',
+          'b': 'begin ',
+          'beg': 'begin ',
+          's': 'section ',
+          'sec': 'section ',
+          'c': 'count',
+        };
+        if (pipeModifiers[postPipe.toLowerCase()]) {
+          setCliInput(`${prePipe} ${pipeModifiers[postPipe.toLowerCase()]}`);
+          return;
+        }
+      }
+
+      // Tab autocomplete dictionary for comprehensive Cisco IOS commands
       const completions: Record<string, string> = {
-        'conf': 'configure terminal',
-        'sh': 'show',
-        'int': 'interface',
-        'ip': 'ip address',
-        'no': 'no shutdown',
-        'sw': 'switchport',
+        // Mode transitions
         'en': 'enable',
+        'dis': 'disable',
+        'conf': 'configure terminal',
+        'conf t': 'configure terminal',
+        'config': 'configure terminal',
+        'config t': 'configure terminal',
         'wr': 'write memory',
+        'wr m': 'write memory',
+        'wr mem': 'write memory',
+        'wr er': 'write erase',
+        'copy run start': 'copy running-config startup-config',
+        'cp run start': 'copy running-config startup-config',
+        'erase start': 'erase startup-config',
+        'rel': 'reload',
+
+        // Show commands
+        'sh': 'show',
+        'sh run': 'show running-config',
+        'sh start': 'show startup-config',
+        'sh ip int br': 'show ip interface brief',
+        'sh ip int': 'show ip interface brief',
+        'sh ip ro': 'show ip route',
+        'sh ip route': 'show ip route',
+        'sh ip proto': 'show ip protocols',
+        'sh ip protocols': 'show ip protocols',
+        'sh ip ospf nei': 'show ip ospf neighbor',
+        'sh ip ospf int': 'show ip ospf interface',
+        'sh ip ospf data': 'show ip ospf database',
+        'sh ip bgp sum': 'show ip bgp summary',
+        'sh ip bgp nei': 'show ip bgp neighbors',
+        'sh ip eigrp nei': 'show ip eigrp neighbors',
+        'sh ip nat trans': 'show ip nat translations',
+        'sh ip nat stat': 'show ip nat statistics',
+        'sh ip dhcp bind': 'show ip dhcp binding',
+        'sh ip dhcp snoop': 'show ip dhcp snooping',
+        'sh mac': 'show mac address-table',
+        'sh mac-address-table': 'show mac address-table',
+        'sh vlan': 'show vlan brief',
+        'sh vl': 'show vlan brief',
+        'sh vlan br': 'show vlan brief',
+        'sh span': 'show spanning-tree',
+        'sh spanning-tree': 'show spanning-tree',
+        'sh cdp nei': 'show cdp neighbors',
+        'sh cdp nei det': 'show cdp neighbors detail',
+        'sh lldp nei': 'show lldp neighbors',
+        'sh lldp nei det': 'show lldp neighbors detail',
+        'sh int status': 'show interfaces status',
+        'sh int desc': 'show interfaces description',
+        'sh int trunk': 'show interfaces trunk',
+        'sh int switchport': 'show interfaces switchport',
+        'sh port-sec': 'show port-security',
+        'sh port-security': 'show port-security',
+        'sh port-sec int': 'show port-security interface',
+        'sh ether sum': 'show etherchannel summary',
+        'sh etherchannel': 'show etherchannel summary',
+        'sh standby': 'show standby brief',
+        'sh standby br': 'show standby brief',
+        'sh hsrp': 'show standby brief',
+        'sh vrrp': 'show vrrp brief',
+        'sh glbp': 'show glbp brief',
+        'sh arp': 'show arp',
+        'sh hosts': 'show hosts',
+        'sh vtp stat': 'show vtp status',
+        'sh ver': 'show version',
+        'sh version': 'show version',
+        'sh acl': 'show access-lists',
+        'sh access-list': 'show access-lists',
+        'sh clock': 'show clock',
+        'sh hist': 'show history',
+        'sh log': 'show logging',
+        'sh proc cpu': 'show processes cpu',
+        'sh mem': 'show memory',
+        'sh tech': 'show tech-support',
+        'sh switch': 'show switch detail',
+        'sh red': 'show redundancy',
+        'sh ntp stat': 'show ntp status',
+        'sh track': 'show track',
+
+        // Global Configuration commands
+        'host': 'hostname ',
+        'hostname': 'hostname ',
+        'int': 'interface ',
+        'int g0/0': 'interface GigabitEthernet0/0',
+        'int g0/1': 'interface GigabitEthernet0/1',
+        'int fa0/1': 'interface FastEthernet0/1',
+        'int range': 'interface range ',
+        'ip rout': 'ip routing',
+        'ip routing': 'ip routing',
+        'ip route': 'ip route ',
+        'ip def': 'ip default-gateway ',
+        'ip default-gateway': 'ip default-gateway ',
+        'ip dhcp pool': 'ip dhcp pool ',
+        'ip dhcp excl': 'ip dhcp excluded-address ',
+        'ip domain-name': 'ip domain-name ',
+        'ip name-server': 'ip name-server ',
+        'ip host': 'ip host ',
+        'ip ssh ver': 'ip ssh version 2',
+        'ipv6 uni': 'ipv6 unicast-routing',
+        'ipv6 unicast-routing': 'ipv6 unicast-routing',
+        'ipv6 route': 'ipv6 route ',
+        'crypto key gen rsa': 'crypto key generate rsa',
+        'line con': 'line console 0',
+        'line vty': 'line vty 0 4',
+        'ro ospf': 'router ospf 1',
+        'router ospf': 'router ospf 1',
+        'ro bgp': 'router bgp ',
+        'ro eigrp': 'router eigrp 100',
+        'ro rip': 'router rip',
+        'span mode pvst': 'spanning-tree mode pvst',
+        'span mode rapid': 'spanning-tree mode rapid-pvst',
+        'span vlan 1 prio': 'spanning-tree vlan 1 priority 4096',
+        'span vlan 1 root pri': 'spanning-tree vlan 1 root primary',
+        'span vlan 1 root sec': 'spanning-tree vlan 1 root secondary',
+        'span portfast def': 'spanning-tree portfast default',
+        'vlan': 'vlan ',
+        'vtp mode': 'vtp mode transparent',
+        'user': 'username admin secret cisco',
+        'en sec': 'enable secret cisco',
+        'service pass': 'service password-encryption',
+        'banner motd': 'banner motd # Authorized Access Only #',
+
+        // Interface subcommands
+        'ip add': 'ip address ',
+        'ip address': 'ip address ',
+        'ip helper': 'ip helper-address ',
+        'ip ospf cost': 'ip ospf cost 10',
+        'ip ospf prio': 'ip ospf priority 100',
+        'no shut': 'no shutdown',
+        'no shutdown': 'no shutdown',
+        'shut': 'shutdown',
+        'shutdown': 'shutdown',
+        'sw': 'switchport',
+        'sw mode': 'switchport mode ',
+        'sw mode acc': 'switchport mode access',
+        'sw mode trunk': 'switchport mode trunk',
+        'sw acc vl': 'switchport access vlan ',
+        'sw access vlan': 'switchport access vlan ',
+        'sw trunk all vl': 'switchport trunk allowed vlan ',
+        'sw trunk allowed vlan': 'switchport trunk allowed vlan ',
+        'sw trunk native vlan': 'switchport trunk native vlan ',
+        'sw voice vlan': 'switchport voice vlan ',
+        'sw port-sec': 'switchport port-security',
+        'sw port-security': 'switchport port-security',
+        'sw port-sec max': 'switchport port-security maximum 2',
+        'sw port-sec mac sticky': 'switchport port-security mac-address sticky',
+        'sw port-sec viol shut': 'switchport port-security violation shutdown',
+        'encap dot': 'encapsulation dot1Q ',
+        'encapsulation dot1q': 'encapsulation dot1Q ',
+        'chan': 'channel-group 1 mode active',
+        'channel-group': 'channel-group 1 mode active',
+        'standby ip': 'standby 1 ip ',
+        'standby prio': 'standby 1 priority 110',
+        'standby preempt': 'standby 1 preempt',
+        'desc': 'description ',
+        'description': 'description ',
+        'speed': 'speed 1000',
+        'duplex': 'duplex full',
+
+        // Router subcommands
+        'net': 'network ',
+        'network': 'network ',
+        'router-id': 'router-id ',
+        'passive': 'passive-interface ',
+        'def-info': 'default-information originate',
+        'default-information originate': 'default-information originate',
+        'no auto': 'no auto-summary',
+        'no auto-summary': 'no auto-summary',
+        'neighbor': 'neighbor ',
+
+        // Line subcommands
+        'login local': 'login local',
+        'transport input ssh': 'transport input ssh',
+        'transport input all': 'transport input all',
+        'logging syn': 'logging synchronous',
+        'logging synchronous': 'logging synchronous',
+        'exec-timeout': 'exec-timeout 10 0',
+
+        // Clear and Debug
+        'deb ip icmp': 'debug ip icmp',
+        'deb ip ospf': 'debug ip ospf events',
+        'deb all': 'debug all',
+        'undeb all': 'undebug all',
+        'clear arp': 'clear arp-cache',
+        'clear mac': 'clear mac address-table dynamic',
+        'clear ip route': 'clear ip route *',
+        'clear ip ospf': 'clear ip ospf process',
       };
-      if (completions[cliInput.trim()]) {
-        setCliInput(completions[cliInput.trim()]);
+
+      // Pipe output filter autocomplete (e.g. "sh run | inc" -> "sh run | include ")
+      if (current.includes('|')) {
+        const lastPipeIdx = current.lastIndexOf('|');
+        const beforePipe = current.slice(0, lastPipeIdx + 1);
+        const pipeArg = current.slice(lastPipeIdx + 1).trim().toLowerCase();
+        const pipeCompletions: Record<string, string> = {
+          'i': 'include ',
+          'in': 'include ',
+          'inc': 'include ',
+          'incude': 'include ',
+          'include': 'include ',
+          'e': 'exclude ',
+          'ex': 'exclude ',
+          'exc': 'exclude ',
+          'exclude': 'exclude ',
+          'b': 'begin ',
+          'beg': 'begin ',
+          'begin': 'begin ',
+          's': 'section ',
+          'sec': 'section ',
+          'section': 'section ',
+          'c': 'count',
+          'cou': 'count',
+          'count': 'count',
+        };
+        if (pipeCompletions[pipeArg]) {
+          setCliInput(`${beforePipe} ${pipeCompletions[pipeArg]}`);
+          return;
+        }
+      }
+
+      const lower = current.toLowerCase();
+      if (completions[lower]) {
+        setCliInput(completions[lower]);
+      } else {
+        // Prefix match against dictionary
+        const candidateKey = Object.keys(completions).find((k) => k.startsWith(lower));
+        if (candidateKey) {
+          setCliInput(completions[candidateKey]);
+        }
       }
     }
   };
@@ -754,6 +1003,18 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    setIsCommandReferenceOpen(true);
+                  }}
+                  className="px-2 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 border border-sky-500/40 cursor-pointer"
+                  title="Open Cisco IOS Command Master Reference"
+                >
+                  <BookOpen className="w-3 h-3 text-sky-400" />
+                  Commands
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
                     const cfg = generateRunningConfig(device);
                     navigator.clipboard.writeText(cfg);
                   }}
@@ -890,118 +1151,91 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
 
             {/* Interfaces List & Configuration */}
             <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                Physical Interfaces
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  Interface Configurations & Port Settings
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono">
+                  {Object.keys(device.config.interfaces).length} Port{Object.keys(device.config.interfaces).length === 1 ? '' : 's'}
+                </div>
               </div>
               <div className="space-y-3">
-                {Object.entries(device.config.interfaces).map(([portName, iface]) => (
-                  <div
-                    key={portName}
-                    className="p-3 bg-slate-950 rounded-lg border border-slate-800/80 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            iface.status === 'up' ? 'bg-emerald-400' : 'bg-rose-500'
-                          }`}
-                        />
-                        <span className="text-xs font-bold font-mono text-slate-200">
-                          {portName}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          ({iface.speed} Mbps)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">Port Status:</span>
-                        <button
-                          onClick={() => {
-                            const newIfaces = { ...device.config.interfaces };
-                            newIfaces[portName] = {
-                              ...iface,
-                              status: iface.status === 'up' ? 'down' : 'up',
-                            };
-                            onUpdateDeviceConfig(device.id, {
-                              ...device.config,
-                              interfaces: newIfaces,
-                            });
-                          }}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                            iface.status === 'up'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                          }`}
-                        >
-                          {iface.status.toUpperCase()}
-                        </button>
-                      </div>
-                    </div>
+                {Object.entries(device.config.interfaces).map(([portName, iface]) => {
+                  const isSwitch =
+                    device.type === 'switch' ||
+                    device.type === 'switch2960_48' ||
+                    device.type === 'switch3560' ||
+                    device.type === 'switch3850' ||
+                    device.type === 'switch9300' ||
+                    device.type === 'l3switch' ||
+                    device.type === 'nexus9000';
+                  const isL3Switch =
+                    device.type === 'switch3560' ||
+                    device.type === 'switch3850' ||
+                    device.type === 'switch9300' ||
+                    device.type === 'l3switch';
 
-                    {/* IP Configuration (if routed or end-host) */}
-                    {(device.type !== 'switch' || iface.mode === 'routed') && (
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-900">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">
-                            IP Address
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. 192.168.1.1"
-                            value={iface.ip || ''}
-                            onChange={(e) => {
+                  return (
+                    <div
+                      key={portName}
+                      className="p-3 bg-slate-950 rounded-lg border border-slate-800/80 space-y-2.5"
+                    >
+                      {/* Port Header & Basic State */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${
+                              iface.status === 'up' ? 'bg-emerald-400 ring-2 ring-emerald-500/20' : 'bg-rose-500 ring-2 ring-rose-500/20'
+                            }`}
+                          />
+                          <span className="text-xs font-bold font-mono text-slate-200">
+                            {portName}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ({iface.speed || 100} Mbps)
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+                            MAC: {iface.mac}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400">Port Admin:</span>
+                          <button
+                            onClick={() => {
                               const newIfaces = { ...device.config.interfaces };
                               newIfaces[portName] = {
                                 ...iface,
-                                ip: e.target.value,
+                                status: iface.status === 'up' ? 'down' : 'up',
                               };
                               onUpdateDeviceConfig(device.id, {
                                 ...device.config,
                                 interfaces: newIfaces,
                               });
                             }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">
-                            Subnet Mask
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. 255.255.255.0"
-                            value={iface.mask || ''}
-                            onChange={(e) => {
-                              const newIfaces = { ...device.config.interfaces };
-                              newIfaces[portName] = {
-                                ...iface,
-                                mask: e.target.value,
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: newIfaces,
-                              });
-                            }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                          />
+                            className={`px-2.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                              iface.status === 'up'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30'
+                            }`}
+                          >
+                            {iface.status.toUpperCase()}
+                          </button>
                         </div>
                       </div>
-                    )}
 
-                    {/* Switchport VLAN & Trunk Configuration */}
-                    {(device.type === 'switch' || device.type === 'l3switch') && (
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-900">
+                      {/* Port Speed, Duplex & Optional Description */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-900/80">
                         <div>
                           <label className="text-[10px] text-slate-400 block mb-0.5">
-                            Switchport Mode
+                            Port Speed
                           </label>
                           <select
-                            value={iface.mode || 'access'}
+                            value={iface.speed || 100}
                             onChange={(e) => {
                               const newIfaces = { ...device.config.interfaces };
                               newIfaces[portName] = {
                                 ...iface,
-                                mode: e.target.value as any,
+                                speed: parseInt(e.target.value, 10),
                               };
                               onUpdateDeviceConfig(device.id, {
                                 ...device.config,
@@ -1010,28 +1244,76 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                             }}
                             className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
                           >
-                            <option value="access">Access</option>
-                            <option value="trunk">Trunk</option>
-                            {device.type === 'l3switch' && (
-                              <option value="routed">Routed (No Switchport)</option>
-                            )}
+                            <option value={10}>10 Mbps (Ethernet)</option>
+                            <option value={100}>100 Mbps (FastEthernet)</option>
+                            <option value={1000}>1000 Mbps (Gigabit)</option>
+                            <option value={10000}>10 Gbps (TenGigabit)</option>
                           </select>
                         </div>
-                        {iface.mode === 'access' && (
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">
+                            Duplex Mode
+                          </label>
+                          <select
+                            value={iface.duplex || 'auto'}
+                            onChange={(e) => {
+                              const newIfaces = { ...device.config.interfaces };
+                              newIfaces[portName] = {
+                                ...iface,
+                                duplex: e.target.value as any,
+                              };
+                              onUpdateDeviceConfig(device.id, {
+                                ...device.config,
+                                interfaces: newIfaces,
+                              });
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                          >
+                            <option value="auto">Auto-Negotiate</option>
+                            <option value="full">Full Duplex</option>
+                            <option value="half">Half Duplex</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">
+                            Description
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Uplink to Core"
+                            value={iface.description || ''}
+                            onChange={(e) => {
+                              const newIfaces = { ...device.config.interfaces };
+                              newIfaces[portName] = {
+                                ...iface,
+                                description: e.target.value,
+                              };
+                              onUpdateDeviceConfig(device.id, {
+                                ...device.config,
+                                interfaces: newIfaces,
+                              });
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                          />
+                        </div>
+                      </div>
+
+                      {/* IP Configuration (if routed device, SVI, or L3 routed port) */}
+                      {(!isSwitch || iface.mode === 'routed' || portName.toLowerCase().startsWith('vlan')) && (
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-900/80">
                           <div>
                             <label className="text-[10px] text-slate-400 block mb-0.5">
-                              Access VLAN ID
+                              IPv4 Address
                             </label>
                             <input
-                              type="number"
-                              min="1"
-                              max="4094"
-                              value={iface.accessVlan || 1}
+                              type="text"
+                              placeholder="e.g. 192.168.1.1"
+                              value={iface.ip || ''}
                               onChange={(e) => {
                                 const newIfaces = { ...device.config.interfaces };
                                 newIfaces[portName] = {
                                   ...iface,
-                                  accessVlan: parseInt(e.target.value, 10) || 1,
+                                  ip: e.target.value,
                                 };
                                 onUpdateDeviceConfig(device.id, {
                                   ...device.config,
@@ -1041,11 +1323,270 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                               className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
                             />
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-0.5">
+                              Subnet Mask
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 255.255.255.0"
+                              value={iface.mask || ''}
+                              onChange={(e) => {
+                                const newIfaces = { ...device.config.interfaces };
+                                newIfaces[portName] = {
+                                  ...iface,
+                                  mask: e.target.value,
+                                };
+                                onUpdateDeviceConfig(device.id, {
+                                  ...device.config,
+                                  interfaces: newIfaces,
+                                });
+                              }}
+                              className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Switchport VLAN & Trunk Configuration */}
+                      {isSwitch && (
+                        <div className="space-y-2 pt-1 border-t border-slate-900/80">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-slate-400 block mb-0.5">
+                                Switchport Mode
+                              </label>
+                              <select
+                                value={iface.mode || 'access'}
+                                onChange={(e) => {
+                                  const newIfaces = { ...device.config.interfaces };
+                                  newIfaces[portName] = {
+                                    ...iface,
+                                    mode: e.target.value as any,
+                                  };
+                                  onUpdateDeviceConfig(device.id, {
+                                    ...device.config,
+                                    interfaces: newIfaces,
+                                  });
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                              >
+                                <option value="access">Access</option>
+                                <option value="trunk">Trunk (802.1Q)</option>
+                                {isL3Switch && (
+                                  <option value="routed">Routed (No Switchport / L3 IP)</option>
+                                )}
+                              </select>
+                            </div>
+
+                            {/* Access Mode Settings */}
+                            {(!iface.mode || iface.mode === 'access') && (
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-0.5">
+                                  Access VLAN ID (1-4094)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="4094"
+                                  value={iface.accessVlan || 1}
+                                  onChange={(e) => {
+                                    const newIfaces = { ...device.config.interfaces };
+                                    newIfaces[portName] = {
+                                      ...iface,
+                                      accessVlan: parseInt(e.target.value, 10) || 1,
+                                    };
+                                    onUpdateDeviceConfig(device.id, {
+                                      ...device.config,
+                                      interfaces: newIfaces,
+                                    });
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                                />
+                              </div>
+                            )}
+
+                            {/* Trunk Mode Settings - Native VLAN */}
+                            {iface.mode === 'trunk' && (
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-0.5">
+                                  Native VLAN (Untagged)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="4094"
+                                  value={iface.nativeVlan || 1}
+                                  onChange={(e) => {
+                                    const newIfaces = { ...device.config.interfaces };
+                                    newIfaces[portName] = {
+                                      ...iface,
+                                      nativeVlan: parseInt(e.target.value, 10) || 1,
+                                    };
+                                    onUpdateDeviceConfig(device.id, {
+                                      ...device.config,
+                                      interfaces: newIfaces,
+                                    });
+                                  }}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                                  placeholder="Default 1"
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Trunk Allowed VLANs */}
+                          {iface.mode === 'trunk' && (
+                            <div>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <label className="text-[10px] text-slate-400">
+                                  Trunk Allowed VLANs (comma-separated, e.g. 10,20,30 or blank for ALL)
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newIfaces = { ...device.config.interfaces };
+                                    newIfaces[portName] = {
+                                      ...iface,
+                                      trunkAllowedVlans: undefined,
+                                    };
+                                    onUpdateDeviceConfig(device.id, {
+                                      ...device.config,
+                                      interfaces: newIfaces,
+                                    });
+                                  }}
+                                  className="text-[9px] text-sky-400 hover:text-sky-300"
+                                >
+                                  Allow All (1-4094)
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="1,10,20,99 (empty = all VLANs allowed)"
+                                value={iface.trunkAllowedVlans ? iface.trunkAllowedVlans.join(', ') : ''}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const vlans = raw
+                                    .split(',')
+                                    .map((s) => parseInt(s.trim(), 10))
+                                    .filter((n) => !isNaN(n) && n >= 1 && n <= 4094);
+                                  const newIfaces = { ...device.config.interfaces };
+                                  newIfaces[portName] = {
+                                    ...iface,
+                                    trunkAllowedVlans: raw.trim() === '' ? undefined : vlans,
+                                  };
+                                  onUpdateDeviceConfig(device.id, {
+                                    ...device.config,
+                                    interfaces: newIfaces,
+                                  });
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                              />
+                            </div>
+                          )}
+
+                          {/* Port Security Configuration for Access Ports */}
+                          {iface.mode !== 'trunk' && iface.mode !== 'routed' && (
+                            <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800/80 space-y-2 mt-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <Shield className="w-3.5 h-3.5 text-amber-400" />
+                                  <span className="text-[11px] font-semibold text-slate-300">
+                                    Port Security
+                                  </span>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-300">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!iface.portSecurity?.enabled}
+                                    onChange={(e) => {
+                                      const newIfaces = { ...device.config.interfaces };
+                                      newIfaces[portName] = {
+                                        ...iface,
+                                        portSecurity: e.target.checked
+                                          ? {
+                                              enabled: true,
+                                              maxMacs: iface.portSecurity?.maxMacs || 1,
+                                              violation: iface.portSecurity?.violation || 'shutdown',
+                                              stickyMacs: iface.portSecurity?.stickyMacs || [],
+                                            }
+                                          : undefined,
+                                      };
+                                      onUpdateDeviceConfig(device.id, {
+                                        ...device.config,
+                                        interfaces: newIfaces,
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 rounded text-sky-500 bg-slate-950 border-slate-700"
+                                  />
+                                  <span>Enabled</span>
+                                </label>
+                              </div>
+
+                              {iface.portSecurity?.enabled && (
+                                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 block mb-0.5">
+                                      Maximum MACs
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="128"
+                                      value={iface.portSecurity.maxMacs}
+                                      onChange={(e) => {
+                                        const newIfaces = { ...device.config.interfaces };
+                                        newIfaces[portName] = {
+                                          ...iface,
+                                          portSecurity: {
+                                            ...iface.portSecurity!,
+                                            maxMacs: parseInt(e.target.value, 10) || 1,
+                                          },
+                                        };
+                                        onUpdateDeviceConfig(device.id, {
+                                          ...device.config,
+                                          interfaces: newIfaces,
+                                        });
+                                      }}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-slate-400 block mb-0.5">
+                                      Violation Action
+                                    </label>
+                                    <select
+                                      value={iface.portSecurity.violation}
+                                      onChange={(e) => {
+                                        const newIfaces = { ...device.config.interfaces };
+                                        newIfaces[portName] = {
+                                          ...iface,
+                                          portSecurity: {
+                                            ...iface.portSecurity!,
+                                            violation: e.target.value as any,
+                                          },
+                                        };
+                                        onUpdateDeviceConfig(device.id, {
+                                          ...device.config,
+                                          interfaces: newIfaces,
+                                        });
+                                      }}
+                                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
+                                    >
+                                      <option value="shutdown">Shutdown (err-disable)</option>
+                                      <option value="restrict">Restrict (drop & count)</option>
+                                      <option value="protect">Protect (silent drop)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1584,6 +2125,16 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
           <div className="w-2 h-2 border-r-2 border-b-2 border-slate-500" />
         </div>
       )}
+
+      {/* Cisco IOS Command Master Reference Modal */}
+      <CommandReferenceModal
+        isOpen={isCommandReferenceOpen}
+        onClose={() => setIsCommandReferenceOpen(false)}
+        onInsertCommand={(cmd) => {
+          setCliInput(cmd);
+          inputRef.current?.focus();
+        }}
+      />
     </div>
   );
 };

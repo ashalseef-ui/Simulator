@@ -16,6 +16,7 @@ import {
   Wand2,
   Bot,
   Flame,
+  Terminal,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -44,6 +45,7 @@ interface TopBarProps {
   onOpenLegal?: () => void;
   onOpenMascot?: () => void;
   onOpenChaos?: () => void;
+  onOpenCommands?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -71,6 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenLegal,
   onOpenMascot,
   onOpenChaos,
+  onOpenCommands,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
@@ -254,6 +257,18 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </button>
         </Tooltip>
+
+        {onOpenCommands && (
+          <Tooltip content="Cisco IOS Command Master Reference">
+            <button
+              onClick={onOpenCommands}
+              className="px-3 py-1.5 rounded-lg bg-sky-950/40 hover:bg-sky-900/50 border border-sky-500/40 text-sky-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-sky-500/10"
+            >
+              <Terminal className="w-3.5 h-3.5 text-sky-400" />
+              <span>CLI Commands</span>
+            </button>
+          </Tooltip>
+        )}
 
         {onOpenTextToTopology && (
           <Tooltip content="Synthesize Lab from Prompt">

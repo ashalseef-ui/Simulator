@@ -144,6 +144,101 @@ export function normalizeInterfaceName(input: string, availableInterfaces: Recor
   return null;
 }
 
+/**
+ * Applies Cisco IOS pipe filters (| include, | exclude, | begin, | section, | count)
+ */
+export function applyCliOutputFilter(rawOutput: string, pipeExpr: string): string {
+  if (!rawOutput) return '';
+  const trimmed = pipeExpr.trim();
+  if (!trimmed) return rawOutput;
+
+  const tokens = trimmed.split(/\s+/);
+  const filterType = tokens[0]?.toLowerCase();
+  const pattern = tokens.slice(1).join(' ').trim();
+
+  // If user only typed '|' or '| ?'
+  if (!filterType || filterType === '?') {
+    return `Output modifiers:\n  begin     Begin with the line that matches\n  exclude   Exclude lines that match\n  include   Include lines that match\n  section   Filter a section of interest\n  count     Count the number of lines`;
+  }
+
+  // If user typed '| include ?' or similar
+  if (tokens[1] === '?' || pattern === '?') {
+    return '  LINE  Regular expression to match';
+  }
+
+  const lines = rawOutput.split('\n');
+
+  // Case-insensitive regex matcher
+  let regex: RegExp;
+  try {
+    regex = new RegExp(pattern || '', 'i');
+  } catch {
+    regex = new RegExp((pattern || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  }
+
+  // | include / inc / incude / i <pattern>
+  if (filterType === 'include' || filterType === 'inc' || filterType === 'incude' || filterType === 'i') {
+    if (!pattern) return rawOutput;
+    return lines.filter((l) => regex.test(l)).join('\n');
+  }
+
+  // | exclude / exc / ex / e <pattern>
+  if (filterType === 'exclude' || filterType === 'exc' || filterType === 'ex' || filterType === 'e') {
+    if (!pattern) return rawOutput;
+    return lines.filter((l) => !regex.test(l)).join('\n');
+  }
+
+  // | begin / beg / b <pattern>
+  if (filterType === 'begin' || filterType === 'beg' || filterType === 'b') {
+    if (!pattern) return rawOutput;
+    const matchIdx = lines.findIndex((l) => regex.test(l));
+    if (matchIdx === -1) return '';
+    return lines.slice(matchIdx).join('\n');
+  }
+
+  // | section / sec / s <pattern>
+  if (filterType === 'section' || filterType === 'sec' || filterType === 's') {
+    if (!pattern) return rawOutput;
+    const matchedSections: string[] = [];
+    let inSection = false;
+    let sectionLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isTopLevelHeader = !line.startsWith(' ') && !line.startsWith('\t') && line.trim().length > 0;
+
+      if (isTopLevelHeader) {
+        if (inSection && sectionLines.length > 0) {
+          matchedSections.push(sectionLines.join('\n'));
+          sectionLines = [];
+        }
+        if (regex.test(line)) {
+          inSection = true;
+          sectionLines.push(line);
+        } else {
+          inSection = false;
+        }
+      } else if (inSection) {
+        sectionLines.push(line);
+      }
+    }
+    if (inSection && sectionLines.length > 0) {
+      matchedSections.push(sectionLines.join('\n'));
+    }
+    return matchedSections.length > 0
+      ? matchedSections.join('\n!\n')
+      : lines.filter((l) => regex.test(l)).join('\n');
+  }
+
+  // | count / c
+  if (filterType === 'count' || filterType === 'c') {
+    const count = lines.filter((l) => l.trim().length > 0).length;
+    return `Number of lines: ${count}`;
+  }
+
+  return rawOutput;
+}
+
 export function executeCliCommand(
   rawCommand: string,
   device: Device,
@@ -164,6 +259,30 @@ export function executeCliCommand(
 
   if (!line) {
     return { output: '', newSession };
+  }
+
+  // Check if command uses pipe output redirection (e.g., "show run | include ip" or "show ip int br | exc unassigned | count")
+  const pipeIndex = line.indexOf('|');
+  if (pipeIndex !== -1) {
+    const mainCommand = line.slice(0, pipeIndex).trim();
+    const pipeParts = line.slice(pipeIndex + 1).split('|');
+
+    // Execute the base command without the pipe
+    const baseResult = executeCliCommand(
+      mainCommand,
+      device,
+      allDevices,
+      session,
+      onConfigChange,
+      allLinks
+    );
+
+    // Sequentially apply each pipe filter to the output
+    let filteredOutput = baseResult.output;
+    for (const part of pipeParts) {
+      filteredOutput = applyCliOutputFilter(filteredOutput, part);
+    }
+    return { output: filteredOutput, newSession: baseResult.newSession };
   }
 
   // Check help '?'
@@ -1240,17 +1359,66 @@ export function executeCliCommand(
       return { output: '% Incomplete command. Syntax: switchport voice vlan <1-4094>', newSession };
     }
 
-    // switchport trunk allowed vlan add <id>
-    if (cmd === 'switchport' && tokens[1] === 'trunk' && tokens[2] === 'allowed') {
-      const vid = parseInt(tokens[tokens.length - 1], 10);
-      if (!isNaN(vid)) {
+    // switchport trunk allowed vlan ...
+    if (cmd === 'switchport' && tokens[1] === 'trunk' && tokens[2] === 'allowed' && tokens[3] === 'vlan') {
+      const subAction = tokens[4]?.toLowerCase();
+      if (subAction === 'all') {
+        delete iface.trunkAllowedVlans;
+        onConfigChange(config);
+        return { output: '', newSession };
+      }
+
+      // Parse comma or dash separated list e.g. "10,20,30" or "10-20" or "add 10" or "remove 20"
+      const parseVlanList = (raw: string): number[] => {
+        const result: number[] = [];
+        const parts = raw.split(',');
+        for (const part of parts) {
+          if (part.includes('-')) {
+            const [startStr, endStr] = part.split('-');
+            const start = parseInt(startStr, 10);
+            const end = parseInt(endStr, 10);
+            if (!isNaN(start) && !isNaN(end)) {
+              for (let v = Math.min(start, end); v <= Math.max(start, end); v++) {
+                if (v >= 1 && v <= 4094 && !result.includes(v)) result.push(v);
+              }
+            }
+          } else {
+            const vid = parseInt(part.trim(), 10);
+            if (!isNaN(vid) && vid >= 1 && vid <= 4094 && !result.includes(vid)) {
+              result.push(vid);
+            }
+          }
+        }
+        return result;
+      };
+
+      if (subAction === 'add') {
+        const toAdd = parseVlanList(tokens.slice(5).join(''));
         if (!iface.trunkAllowedVlans) iface.trunkAllowedVlans = [1];
-        if (!iface.trunkAllowedVlans.includes(vid)) {
-          iface.trunkAllowedVlans.push(vid);
+        for (const v of toAdd) {
+          if (!iface.trunkAllowedVlans.includes(v)) iface.trunkAllowedVlans.push(v);
         }
         onConfigChange(config);
         return { output: '', newSession };
       }
+
+      if (subAction === 'remove') {
+        const toRemove = parseVlanList(tokens.slice(5).join(''));
+        if (iface.trunkAllowedVlans) {
+          iface.trunkAllowedVlans = iface.trunkAllowedVlans.filter((v) => !toRemove.includes(v));
+        }
+        onConfigChange(config);
+        return { output: '', newSession };
+      }
+
+      // Direct assignment: switchport trunk allowed vlan 10,20,30
+      const assigned = parseVlanList(tokens.slice(4).join(''));
+      if (assigned.length > 0) {
+        iface.trunkAllowedVlans = assigned;
+        onConfigChange(config);
+        return { output: '', newSession };
+      }
+      return { output: '% Incomplete or invalid VLAN syntax. Examples: 10,20 or add 30 or all', newSession };
     }
 
     // ip helper-address <ip>
@@ -1265,6 +1433,13 @@ export function executeCliCommand(
     // no switchport (on L3 switches to turn port into routed port)
     if (line === 'no switchport') {
       iface.mode = 'routed';
+      onConfigChange(config);
+      return { output: '', newSession };
+    }
+
+    // no switchport port-security
+    if (line.startsWith('no switchport port-security')) {
+      delete iface.portSecurity;
       onConfigChange(config);
       return { output: '', newSession };
     }
@@ -2355,15 +2530,33 @@ function handleShowCommands(
     }
     if (sub.includes('trunk')) {
       let out = 'Port        Mode         Encapsulation  Status        Native vlan\n';
+      let hasTrunk = false;
       for (const [name, iface] of Object.entries(device.config.interfaces)) {
         if (iface.mode === 'trunk') {
+          hasTrunk = true;
           out += `${name.padEnd(11)} on           802.1q         trunking      ${iface.nativeVlan || 1}\n`;
         }
       }
+      if (!hasTrunk) return { output: '% No interface is currently configured in trunk mode.', newSession: session };
+
       out += '\nPort        Vlans allowed on trunk\n';
       for (const [name, iface] of Object.entries(device.config.interfaces)) {
         if (iface.mode === 'trunk') {
-          out += `${name.padEnd(11)} 1-4094\n`;
+          const allowedStr = iface.trunkAllowedVlans && iface.trunkAllowedVlans.length > 0
+            ? iface.trunkAllowedVlans.join(',')
+            : '1-4094';
+          out += `${name.padEnd(11)} ${allowedStr}\n`;
+        }
+      }
+
+      out += '\nPort        Vlans allowed and active in management domain\n';
+      for (const [name, iface] of Object.entries(device.config.interfaces)) {
+        if (iface.mode === 'trunk') {
+          const activeVlans = Object.keys(device.config.vlans || { 1: 1 }).map(Number);
+          const allowed = iface.trunkAllowedVlans && iface.trunkAllowedVlans.length > 0
+            ? iface.trunkAllowedVlans.filter((v) => activeVlans.includes(v))
+            : activeVlans;
+          out += `${name.padEnd(11)} ${allowed.join(',') || '1'}\n`;
         }
       }
       return { output: out.trimEnd(), newSession: session };
@@ -2381,15 +2574,57 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
 
-  // show port-security
+  // show port-security / show port-security interface / show port-security address
   if (sub.startsWith('port-security') || sub.startsWith('port-sec')) {
+    if (sub.includes('interface ') || sub.includes('int ')) {
+      const ifaceToken = sub.replace(/^.*(interface|int)\s+/, '').trim();
+      const resolved = normalizeInterfaceName(ifaceToken, device.config.interfaces);
+      const iface = resolved ? device.config.interfaces[resolved] : null;
+      if (!iface) return { output: `% Interface "${ifaceToken}" not found.`, newSession: session };
+      const ps = iface.portSecurity;
+      let out = `Port Security              : ${ps?.enabled ? 'Enabled' : 'Disabled'}\n`;
+      out += `Port Status                : ${iface.status === 'up' ? 'Secure-up' : 'Secure-down'}\n`;
+      out += `Violation Mode             : ${ps?.violation || 'Shutdown'}\n`;
+      out += `Aging Time                 : 0 mins\n`;
+      out += `Aging Type                 : Absolute\n`;
+      out += `SecureStatic Address Aging : Disabled\n`;
+      out += `Maximum MAC Addresses      : ${ps?.maxMacs || 1}\n`;
+      out += `Total MAC Addresses        : ${ps?.stickyMacs?.length ? ps.stickyMacs.length : ps?.enabled ? 1 : 0}\n`;
+      out += `Configured MAC Addresses   : ${ps?.stickyMacs?.length || 0}\n`;
+      out += `Sticky MAC Addresses       : ${ps?.stickyMacs?.length || 0}\n`;
+      out += `Last Source Address:Vlan   : ${ps?.stickyMacs?.[0] || '0000.0000.0000'}:1\n`;
+      out += `Security Violation Count   : 0\n`;
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('address')) {
+      let out = '               Secure Mac Address Table\n-------------------------------------------------------------------\nVlan    Mac Address       Type                          Ports   Remaining Age\n                                                                   (mins)\n----    -----------       ----                          -----   -------------\n';
+      let hasEntries = false;
+      for (const [name, iface] of Object.entries(device.config.interfaces)) {
+        if (iface.portSecurity?.enabled) {
+          const macList = iface.portSecurity.stickyMacs?.length ? iface.portSecurity.stickyMacs : ['001c.b123.4567'];
+          for (const m of macList) {
+            hasEntries = true;
+            out += `   1    ${m.padEnd(17)} SecureSticky                 ${name.padEnd(7)}       -\n`;
+          }
+        }
+      }
+      return { output: hasEntries ? out.trimEnd() : '% No secure MAC addresses configured.', newSession: session };
+    }
+
     let out = 'Secure Port  MaxSecureAddr  CurrentAddr  SecurityViolation  Security Action\n';
     out += '                (Count)       (Count)          (Count)\n';
     out += '-----------  -------------  -----------  -----------------  ---------------\n';
+    let count = 0;
     for (const [name, iface] of Object.entries(device.config.interfaces)) {
       if (iface.portSecurity?.enabled) {
-        out += `${name.padEnd(11)}  ${String(iface.portSecurity.maxMacs).padEnd(13)}  1            0                  ${iface.portSecurity.violation.padEnd(15)}\n`;
+        count++;
+        const curAddr = iface.portSecurity.stickyMacs?.length || 1;
+        out += `${name.padEnd(11)}  ${String(iface.portSecurity.maxMacs).padEnd(13)}  ${String(curAddr).padEnd(11)}  0                  ${iface.portSecurity.violation.padEnd(15)}\n`;
       }
+    }
+    if (count === 0) {
+      out += '(no secure ports configured)\n';
     }
     return { output: out.trimEnd(), newSession: session };
   }
@@ -3192,44 +3427,64 @@ function getContextHelp(prefix: string, mode: CliMode, _device: Device): string 
 
   // Subcommand help
   if (pfx === 'show' || pfx === 'sh') {
-    return '  access-lists        List access lists\n  arp                 Arp table\n  cdp                 CDP information\n  clock               Display the system clock\n  dhcp                Dynamic Host Configuration Protocol\n  etherchannel        EtherChannel information\n  flash:              Directory of flash:\n  history             Display the session command history\n  interfaces          Interface status and configuration\n  inventory           Show physical inventory\n  ip                  IP information (route, interface, ospf, nat, dhcp)\n  ipv6                IPv6 information\n  lldp                LLDP information\n  logging             Show logging buffer\n  mac                 MAC address table\n  ntp                 NTP status\n  port-security       Port Security status\n  processes           Active process statistics\n  running-config      Current operating configuration\n  spanning-tree       Spanning Tree topology\n  standby             Hot Standby Router Protocol (HSRP)\n  startup-config      Contents of startup configuration (NVRAM)\n  tech-support        Detailed system diagnostic information\n  version             System hardware & software status\n  vlan                VLAN information\n  vtp                 VTP information';
+    return '  access-lists        List access lists\n  arp                 Arp table\n  cdp                 CDP information (neighbors, detail)\n  clock               Display the system clock\n  dhcp                Dynamic Host Configuration Protocol\n  etherchannel        EtherChannel information\n  flash:              Directory of flash:\n  history             Display the session command history\n  hosts               Display DNS domain and static host table\n  interfaces          Interface status and configuration\n  inventory           Show physical inventory\n  ip                  IP information (route, interface, ospf, bgp, eigrp, nat, dhcp, protocols, sla)\n  ipv6                IPv6 information (interface brief, route)\n  lldp                LLDP information\n  logging             Show logging buffer\n  mac-address-table   MAC address table\n  ntp                 NTP status\n  policy-map          QoS Policy Maps\n  port-security       Port Security status, interface, address\n  processes           Active process statistics (cpu)\n  redundancy          Stateful switchover status\n  running-config      Current operating configuration\n  spanning-tree       Spanning Tree topology & PVST+ details\n  standby             Hot Standby Router Protocol (HSRP)\n  startup-config      Contents of startup configuration (NVRAM)\n  switch              SwitchWise stack details and ring\n  tech-support        Detailed system diagnostic information\n  track               Object tracking status\n  version             System hardware & software status\n  vlan                VLAN information (brief, id, summary)\n  vrrp                VRRP redundancy status\n  vtp                 VTP domain and operational mode';
   }
 
   if (pfx === 'ip') {
-    return '  address             Set the IP address of an interface\n  default-gateway     Specify default gateway (if not routing)\n  dhcp                Configure DHCP server parameters\n  domain-lookup       Enable IP Domain Name System hostname translation\n  domain-name         Define the default domain name\n  helper-address      Specify a destination address for UDP broadcasts\n  nat                 Network Address Translation\n  ospf                OSPF interface subcommands\n  route               Establish static routes\n  routing             Enable IP routing';
+    return '  address             Set the IP address of an interface\n  default-gateway     Specify default gateway (if not routing)\n  dhcp                Configure DHCP server parameters\n  domain-lookup       Enable IP Domain Name System hostname translation\n  domain-name         Define the default domain name\n  helper-address      Specify a destination address for UDP broadcasts\n  host                Define static hostname to IP mapping\n  nat                 Network Address Translation\n  ospf                OSPF interface subcommands\n  route               Establish static routes\n  routing             Enable IP routing\n  sla                 IP SLA synthetic probes\n  ssh                 Configure SSH version';
+  }
+
+  if (pfx === 'spanning-tree' || pfx === 'span' || pfx === 'stp') {
+    return '  mode                Operating spanning-tree mode (pvst, rapid-pvst, mst)\n  portfast            Spanning Tree PortFast immediate forwarding\n  vlan                VLAN spanning-tree configuration (priority, root primary/secondary)';
   }
 
   if (pfx === 'debug') {
-    return '  all                 Enable all debugging\n  ip icmp             ICMP packet debugging\n  ip ospf             OSPF events and adjacencies\n  ip packet           IP packet debugging\n  ip dhcp             DHCP server events\n  spanning-tree       STP BPDU and topology change debugging';
+    return '  all                 Enable all debugging\n  ip icmp             ICMP packet debugging\n  ip ospf             OSPF events and adjacencies\n  ip packet           IP packet debugging\n  ip dhcp             DHCP server events\n  spanning-tree       STP BPDU and topology change debugging\n  arp                 ARP packet debugging';
   }
 
-  if (pfx === 'switchport') {
-    return '  access              Set access mode characteristics of the interface\n  mode                Set trunk or access mode of the interface\n  nonegotiate         Device will not engage in DTP negotiation\n  port-security       Security related command\n  trunk               Set trunking characteristics of the interface\n  voice               Voice VLAN';
+  if (pfx === 'switchport' || pfx === 'sw') {
+    return '  access              Set access mode characteristics of the interface\n  mode                Set trunk or access mode of the interface\n  nonegotiate         Device will not engage in DTP negotiation\n  port-security       Security related command (maximum, mac-address, violation)\n  trunk               Set trunking characteristics of the interface (allowed, native)\n  voice               Configure Voice VLAN for VoIP phones';
+  }
+
+  if (pfx === 'router' || pfx === 'ro') {
+    return '  bgp                 Border Gateway Protocol (BGP)\n  eigrp               Enhanced Interior Gateway Routing Protocol\n  ospf                Open Shortest Path First (OSPF)\n  rip                 Routing Information Protocol (RIP)';
+  }
+
+  if (pfx === 'copy' || pfx === 'cp') {
+    return '  running-config      Copy running configuration (e.g. copy run start)\n  startup-config      Copy startup configuration\n  flash:              Copy from flash filesystem\n  tftp:               Copy from TFTP network host';
+  }
+
+  if (pfx === 'clear' || pfx === 'clr') {
+    return '  arp-cache           Purge dynamic ARP entries\n  counters            Reset interface packet counters\n  ip ospf process     Reset OSPF neighbor adjacencies and SPF recalculation\n  ip route *          Flush routing cache\n  mac address-table   Purge dynamic CAM/MAC table entries\n  nat translations    Flush dynamic NAT translation slots';
+  }
+
+  if (pfx === 'vtp') {
+    return '  domain              Set VTP administrative domain\n  mode                Set VTP operating mode (server, client, transparent, off)\n  password            Set VTP administrative password';
   }
 
   if (mode === 'user') {
-    return '  enable       Turn on privileged commands\n  ping         Send echo messages\n  show         Show running system information\n  traceroute   Trace route to destination\n  exit         Exit from EXEC mode';
+    return '  enable       Turn on privileged commands\n  ping         Send echo messages (ICMP)\n  show         Show running system information\n  traceroute   Trace route to destination\n  exit         Exit from EXEC mode';
   }
   if (mode === 'priv') {
-    return '  clear        Reset functions (arp, mac, ip route, ospf, counters)\n  clock        Manage the system clock\n  configure    Enter configuration mode (terminal)\n  copy         Copy from one file to another (run start)\n  debug        Debugging functions\n  disable      Turn off privileged commands\n  erase        Erase a filesystem (startup-config)\n  ping         Send echo messages\n  reload       Halt and perform a cold restart\n  show         Show running system information\n  ssh          Open a secure shell client connection\n  telnet       Open a telnet connection\n  terminal     Set terminal line parameters (monitor)\n  traceroute   Trace route to destination\n  undebug      Disable debugging functions (undebug all)\n  write        Write running configuration to memory\n  exit         Exit from EXEC mode';
+    return '  clear        Reset functions (arp, mac, ip route, ospf, counters)\n  clock        Manage the system clock (clock set)\n  configure    Enter configuration mode (terminal)\n  copy         Copy from one file to another (copy run start)\n  debug        Debugging functions (debug ip icmp, debug ip ospf)\n  disable      Turn off privileged commands\n  erase        Erase a filesystem (erase startup-config)\n  ping         Send echo messages\n  redundancy   Force SSO switchover\n  reload       Halt and perform a cold restart\n  show         Show running system information\n  ssh          Open a secure shell client connection\n  telnet       Open a telnet connection\n  terminal     Set terminal line parameters (terminal monitor)\n  traceroute   Trace route to destination\n  undebug      Disable debugging functions (undebug all)\n  write        Write running configuration to memory (wr mem)\n  exit         Exit from EXEC mode';
   }
   if (mode === 'config') {
-    return '  access-list  Add an access list entry\n  banner       Define a login banner (motd)\n  cdp          Global CDP configuration subcommands\n  crypto       Encryption subsystem\n  do           To run exec commands in config mode\n  enable       Modify enable password parameters\n  end          Exit from configure mode\n  exit         Exit from configure mode\n  hostname     Set system network name\n  interface    Select an interface to configure\n  ip           Global IP configuration subcommands\n  ipv6         Global IPv6 configuration subcommands\n  line         Configure a terminal line (con, vty)\n  lldp         Global LLDP configuration subcommands\n  ntp          Configure NTP\n  router       Enable a routing process (ospf)\n  service      Modify use of network based services\n  spanning-tree Spanning Tree Subsystem\n  username     Establish User Name Authentication\n  vlan         Vlan configuration commands\n  vtp          Global VTP configuration commands';
+    return '  access-list  Add an access list entry (standard / extended)\n  banner       Define a login banner (motd)\n  cdp          Global CDP configuration subcommands (cdp run)\n  class-map    Configure QoS classification match criteria\n  crypto       Encryption subsystem (crypto key generate rsa)\n  do           To run exec commands in config mode\n  enable       Modify enable password parameters (secret / password)\n  end          Exit from configure mode to Privileged EXEC\n  exit         Exit from configure mode\n  feature      NX-OS feature enablement (ospf, vpc, lldp, lacp)\n  hostname     Set system network name\n  interface    Select an interface to configure\n  ip           Global IP configuration subcommands (route, routing, dhcp, nat, sla)\n  ipv6         Global IPv6 configuration subcommands (unicast-routing, route)\n  line         Configure a terminal line (console, vty)\n  lldp         Global LLDP configuration subcommands (lldp run)\n  monitor      Configure SPAN port mirroring sessions\n  no           Negate a command or set its defaults\n  ntp          Configure NTP server time synchronization\n  policy-map   Configure QoS policy map service classes\n  router       Enable a routing process (ospf, bgp, eigrp, rip)\n  service      Modify use of network based services (password-encryption)\n  spanning-tree Spanning Tree Subsystem (vlan priority, mode, portfast)\n  switch       SwitchWise stack configuration (priority, provision)\n  track        Object tracking configuration for IP SLA\n  username     Establish User Name Authentication\n  vlan         Vlan configuration commands (1-4094)\n  vtp          Global VTP configuration commands\n  wlan         WLC Wireless LAN configuration';
   }
   if (mode === 'config-if' || mode === 'config-subif') {
-    return '  cdp          CDP interface subcommands\n  channel-group Add this interface to an EtherChannel\n  description  Interface specific description\n  duplex       Configure duplex operation\n  encapsulation Set encapsulation type for an interface (dot1Q)\n  ip           Interface Internet Protocol config commands\n  ipv6         Interface IPv6 config commands\n  no           Negate a command or set its defaults\n  shutdown     Shutdown the selected interface\n  speed        Configure speed operation\n  standby      HSRP interface configuration commands\n  switchport   Set switching mode characteristics\n  exit         Exit from interface configuration mode\n  do           To run exec commands';
+    return '  cdp          CDP interface subcommands (cdp enable)\n  channel-group Add this interface to an EtherChannel bundle\n  description  Interface specific description label\n  duplex       Configure duplex operation (auto, full, half)\n  encapsulation Set encapsulation type for an interface (dot1Q)\n  glbp         GLBP gateway load balancing configuration\n  ip           Interface Internet Protocol config commands (address, helper-address, ospf, nat)\n  ipv6         Interface IPv6 config commands (address, autoconfig)\n  lldp         LLDP interface subcommands\n  nameif       ASA Firewall: Assign interface zone\n  no           Negate a command or set its defaults (no shutdown, no switchport)\n  security-level ASA Firewall: Assign security level (0-100)\n  service-policy Attach QoS policy map (input / output)\n  shutdown     Shutdown the selected interface\n  speed        Configure speed operation (10, 100, 1000, auto)\n  standby      HSRP interface configuration commands (ip, priority, preempt)\n  switchport   Set switching mode characteristics (access, trunk, vlan, port-security, voice)\n  tunnel       Configure GRE VPN tunnel parameters (source, destination, mode)\n  vrrp         VRRP interface redundancy commands\n  exit         Exit from interface configuration mode\n  end          Return directly to privileged exec mode\n  do           To run exec commands';
   }
   if (mode === 'config-router') {
-    return '  default-information Control distribution of default information\n  network             Enable routing on an IP network\n  passive-interface   Suppress routing updates on an interface\n  router-id           OSPF router-id in IP address format\n  exit                Exit from router configuration mode\n  do                  To run exec commands';
+    return '  auto-summary        Automatic network number summarization\n  default-information Control distribution of default information (originate)\n  neighbor            BGP neighbor IP and remote-as\n  network             Enable routing on an IP network\n  passive-interface   Suppress routing updates on an interface\n  router-id           OSPF/BGP router-id in IP address format\n  version             RIP protocol version (1 or 2)\n  exit                Exit from router configuration mode\n  end                 Return directly to privileged exec mode\n  do                  To run exec commands';
   }
   if (mode === 'config-dhcp') {
-    return '  default-router      Default routers\n  dns-server          DNS servers\n  domain-name         Domain name\n  network             Network number and mask\n  exit                Exit from DHCP pool configuration mode\n  do                  To run exec commands';
+    return '  default-router      Default routers\n  dns-server          DNS servers\n  domain-name         Domain name\n  network             Network number and mask\n  exit                Exit from DHCP pool configuration mode\n  end                 Return directly to privileged exec mode\n  do                  To run exec commands';
   }
   if (mode === 'config-vlan') {
-    return '  name                Ascii name of the VLAN\n  exit                Exit from VLAN configuration mode\n  do                  To run exec commands';
+    return '  name                Ascii name of the VLAN\n  exit                Exit from VLAN configuration mode\n  end                 Return directly to privileged exec mode\n  do                  To run exec commands';
   }
   if (mode === 'config-line') {
-    return '  exec-timeout        Set the EXEC timeout\n  logging             Modify message logging facilities (synchronous)\n  login               Enable password checking\n  password            Set a password\n  transport           Define transport protocols for line (input ssh)\n  exit                Exit from line configuration mode\n  do                  To run exec commands';
+    return '  exec-timeout        Set the EXEC timeout (minutes seconds)\n  logging             Modify message logging facilities (synchronous)\n  login               Enable password checking (or login local)\n  password            Set line access password\n  transport           Define transport protocols for line (input ssh, all)\n  exit                Exit from line configuration mode\n  end                 Return directly to privileged exec mode\n  do                  To run exec commands';
   }
   return '  exit         Exit current configuration mode\n  end          Return to privileged exec mode';
 }
