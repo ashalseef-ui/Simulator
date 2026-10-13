@@ -728,4 +728,91 @@ export const LAB_SCENARIOS: LabScenario[] = [
       };
     },
   },
+  {
+    id: 'lab-10-universal-multivendor',
+    title: '10. Universal Multi-Vendor NOS Interoperability',
+    category: 'Universal Multi-Vendor',
+    difficulty: 'Advanced',
+    summary: 'Configure and interconnect heterogeneous operating systems: Cisco IOS-XE, Juniper Junos OS, and Arista EOS in a single enterprise backbone.',
+    objective: 'Configure IP addressing and routing between Cisco R1 and Juniper vSRX across an Arista DC Switch, then verify bidirectional reachability.',
+    instructions: [
+      'Open Cisco R1 CLI and configure Gi0/0 with IP 10.0.1.1 255.255.255.0 and "no shutdown".',
+      'Open Juniper vSRX CLI (Junos), use "set interfaces ge-0/0/0 unit 0 family inet address 10.0.1.2/24".',
+      'Ensure the Arista Switch (SW1) has its connecting ports up.',
+      'From Cisco R1 CLI run "ping 10.0.1.2" or from Juniper vSRX run "ping 10.0.1.1".',
+      'Click "Verify Configuration" to validate multi-vendor NOS convergence.',
+    ],
+    tips: [
+      'Use the Universal CLI Rosetta Stone (Top bar -> Universal CLI) to translate between Cisco IOS and Junos OS syntax.',
+      'In Junos, interface configurations require assigning units and inet family (e.g., set interfaces ge-0/0/0 unit 0 family inet address 10.0.1.2/24).',
+      'You can switch OS personality at any time from the CLI terminal NOS selector.',
+    ],
+    initialTopology: () => {
+      const ciscoR1 = createDevice('router', 'R1-Cisco', 220, 240);
+      const juniperSRX = createDevice('juniper_vsrx', 'vSRX-Juniper', 600, 240);
+      const aristaSW = createDevice('arista_7050', 'SW1-Arista', 410, 240);
+
+      ciscoR1.config.networkOs = 'cisco-ios';
+      juniperSRX.config.networkOs = 'juniper-junos';
+      aristaSW.config.networkOs = 'arista-eos';
+
+      aristaSW.config.interfaces['Et1'].status = 'up';
+      aristaSW.config.interfaces['Et2'].status = 'up';
+
+      const links: Link[] = [
+        {
+          id: 'l_cisco_arista',
+          fromDevice: ciscoR1.id,
+          fromPort: 'Gi0/0',
+          toDevice: aristaSW.id,
+          toPort: 'Et1',
+          cable: 'straight',
+        },
+        {
+          id: 'l_juniper_arista',
+          fromDevice: juniperSRX.id,
+          fromPort: 'ge-0/0/0',
+          toDevice: aristaSW.id,
+          toPort: 'Et2',
+          cable: 'straight',
+        },
+      ];
+
+      return { devices: [ciscoR1, juniperSRX, aristaSW], links };
+    },
+    validate: (devices) => {
+      const ciscoR1 = devices.find((d) => d.name === 'R1-Cisco');
+      const juniperSRX = devices.find((d) => d.name === 'vSRX-Juniper');
+      const aristaSW = devices.find((d) => d.name === 'SW1-Arista');
+
+      const ciscoIp = ciscoR1?.config.interfaces['Gi0/0']?.ip;
+      const ciscoStatus = ciscoR1?.config.interfaces['Gi0/0']?.status;
+      const juniperIp = juniperSRX?.config.interfaces['ge-0/0/0']?.ip;
+      const juniperStatus = juniperSRX?.config.interfaces['ge-0/0/0']?.status;
+
+      const c1 = {
+        name: 'Cisco R1 Gi0/0 configured (10.0.1.1/24 up)',
+        passed: ciscoIp === '10.0.1.1' && ciscoStatus === 'up',
+        message: 'Set Cisco Gi0/0 to 10.0.1.1 255.255.255.0 and enable interface',
+      };
+      const c2 = {
+        name: 'Juniper vSRX ge-0/0/0 configured (10.0.1.2/24 up)',
+        passed: juniperIp === '10.0.1.2' && juniperStatus === 'up',
+        message: 'Set Juniper ge-0/0/0 to 10.0.1.2/24 via Junos CLI',
+      };
+      const c3 = {
+        name: 'Arista SW1 interconnect active',
+        passed: !!aristaSW,
+        message: 'Ensure Arista switch is connected in the backbone topology',
+      };
+
+      const criteria = [c1, c2, c3];
+      const passedCount = criteria.filter((c) => c.passed).length;
+      return {
+        passed: passedCount === criteria.length,
+        score: Math.round((passedCount / criteria.length) * 100),
+        criteria,
+      };
+    },
+  },
 ];

@@ -95,7 +95,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Logo/Title */}
         <div className="flex items-center gap-2 mr-6 shrink-0">
           <Network className="w-5 h-5 text-sky-400 shrink-0" />
-          <h1 className="text-sm font-bold text-white whitespace-nowrap hidden sm:block">NetT-Sim</h1>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold text-white whitespace-nowrap hidden sm:block">NetT-Sim</h1>
+            <span className="text-[8px] font-mono text-emerald-400 font-bold tracking-wider hidden lg:block -mt-0.5">UNIVERSAL SIMULATOR</span>
+          </div>
         </div>
 
         {/* File Menu Dropdown */}
@@ -195,7 +198,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           }`}
         >
           <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-          <span>{activeLabTitle ? `Lab: ${activeLabTitle.replace(/^\d+\.\s*/, '').slice(0, 16)}...` : 'CCNA Labs'}</span>
+          <span>{activeLabTitle ? `Lab: ${activeLabTitle.replace(/^\d+\.\s*/, '').slice(0, 16)}...` : 'Guided Labs'}</span>
           {activeLabTitle && (
             <span
               className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
@@ -259,13 +262,13 @@ export const TopBar: React.FC<TopBarProps> = ({
         </Tooltip>
 
         {onOpenCommands && (
-          <Tooltip content="Cisco IOS Command Master Reference">
+          <Tooltip content="Multi-Vendor CLI Matrix & Rosetta Stone (Cisco, Juniper, Arista, Linux, MikroTik)">
             <button
               onClick={onOpenCommands}
               className="px-3 py-1.5 rounded-lg bg-sky-950/40 hover:bg-sky-900/50 border border-sky-500/40 text-sky-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-sky-500/10"
             >
               <Terminal className="w-3.5 h-3.5 text-sky-400" />
-              <span>CLI Commands</span>
+              <span>Universal CLI</span>
             </button>
           </Tooltip>
         )}

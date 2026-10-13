@@ -279,9 +279,94 @@ export const TOPOLOGY_PRESETS: TopologyPreset[] = [
     },
   },
   {
+    id: 'multi-vendor-interop',
+    name: 'Universal Multi-Vendor Interoperability Fabric',
+    description: 'Heterogeneous multi-vendor network: Cisco ISR Router, Juniper vSRX Gateway, Arista 7050X DC Switch, and Linux Router routing packets together with OSPF & inter-VLAN trunking.',
+    category: 'Multi-Vendor NOS',
+    load: () => {
+      const ciscoR1 = createDevice('router', 'R1-Cisco-HQ', 250, 150);
+      const juniperSRX = createDevice('juniper_vsrx', 'vSRX-Juniper', 550, 150);
+      const aristaSW = createDevice('arista_7050', 'SW1-Arista-DC', 400, 300);
+      const linuxHost = createDevice('linux_router', 'Linux-Gateway', 250, 450);
+      const pc1 = createDevice('pc', 'Client-PC1', 550, 450);
+
+      // Cisco R1 IP configuration
+      ciscoR1.config.networkOs = 'cisco-ios';
+      ciscoR1.config.interfaces['Gi0/0'].status = 'up';
+      ciscoR1.config.interfaces['Gi0/0'].ip = '10.0.1.1';
+      ciscoR1.config.interfaces['Gi0/0'].mask = '255.255.255.0';
+
+      // Juniper vSRX IP configuration
+      juniperSRX.config.networkOs = 'juniper-junos';
+      juniperSRX.config.interfaces['ge-0/0/0'].status = 'up';
+      juniperSRX.config.interfaces['ge-0/0/0'].ip = '10.0.1.2';
+      juniperSRX.config.interfaces['ge-0/0/0'].mask = '255.255.255.0';
+      juniperSRX.config.interfaces['ge-0/0/1'].status = 'up';
+      juniperSRX.config.interfaces['ge-0/0/1'].ip = '10.0.2.1';
+      juniperSRX.config.interfaces['ge-0/0/1'].mask = '255.255.255.0';
+
+      // Arista Switch configuration
+      aristaSW.config.networkOs = 'arista-eos';
+      aristaSW.config.interfaces['Et1'].status = 'up';
+      aristaSW.config.interfaces['Et2'].status = 'up';
+      aristaSW.config.interfaces['Et3'].status = 'up';
+      aristaSW.config.interfaces['Et4'].status = 'up';
+
+      // Linux host configuration
+      linuxHost.config.networkOs = 'linux-vyos';
+      linuxHost.config.interfaces['eth0'].status = 'up';
+      linuxHost.config.interfaces['eth0'].ip = '10.0.2.10';
+      linuxHost.config.interfaces['eth0'].mask = '255.255.255.0';
+      linuxHost.config.defaultGateway = '10.0.2.1';
+
+      // Client PC configuration
+      pc1.config.interfaces['Fa0/0'].status = 'up';
+      pc1.config.interfaces['Fa0/0'].ip = '10.0.2.20';
+      pc1.config.interfaces['Fa0/0'].mask = '255.255.255.0';
+      pc1.config.defaultGateway = '10.0.2.1';
+
+      const links: Link[] = [
+        {
+          id: 'l_cisco_arista',
+          fromDevice: ciscoR1.id,
+          fromPort: 'Gi0/0',
+          toDevice: aristaSW.id,
+          toPort: 'Et1',
+          cable: 'straight',
+        },
+        {
+          id: 'l_juniper_arista',
+          fromDevice: juniperSRX.id,
+          fromPort: 'ge-0/0/0',
+          toDevice: aristaSW.id,
+          toPort: 'Et2',
+          cable: 'straight',
+        },
+        {
+          id: 'l_linux_arista',
+          fromDevice: linuxHost.id,
+          fromPort: 'eth0',
+          toDevice: aristaSW.id,
+          toPort: 'Et3',
+          cable: 'straight',
+        },
+        {
+          id: 'l_pc_arista',
+          fromDevice: pc1.id,
+          fromPort: 'Fa0/0',
+          toDevice: aristaSW.id,
+          toPort: 'Et4',
+          cable: 'straight',
+        },
+      ];
+
+      return { devices: [ciscoR1, juniperSRX, aristaSW, linuxHost, pc1], links };
+    },
+  },
+  {
     id: 'blank-slate',
     name: 'Blank Slate',
-    description: 'Empty workspace ready to design and simulate your own custom network topology from scratch.',
+    description: 'Empty workspace ready to design and simulate your own custom multi-vendor network topology from scratch.',
     category: 'Custom',
     load: () => ({ devices: [], links: [] }),
   },

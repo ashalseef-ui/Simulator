@@ -83,12 +83,101 @@ function renderCompactFrontPanel(type: DeviceType) {
               {[0, 1, 2].map((i) => (
                 <div key={i} className="flex flex-col items-center">
                   <div className="w-0.5 h-0.5 rounded-full bg-emerald-400 mb-[1px]" />
-                  <div className="w-2 h-2.5 bg-slate-950 border border-slate-600 rounded-[1px] flex items-center justify-center">
-                    <div className="w-1 h-1 bg-amber-600/80 rounded-[0.5px]" />
-                  </div>
+                  <div className="w-2 h-2.5 bg-slate-950 border border-slate-700 rounded-[1px]" />
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      );
+
+    case 'juniper_vsrx':
+      return (
+        <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-emerald-950 via-slate-900 to-black border border-emerald-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-[6px] font-mono leading-none">
+            <span className="text-[5px] text-emerald-400 font-bold tracking-tighter">JUNIPER vSRX</span>
+            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" />
+          </div>
+          <div className="flex gap-0.5 items-center justify-end">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="w-2 h-2.5 bg-slate-950 border border-emerald-800 rounded-[1px] flex flex-col items-center justify-center">
+                <div className="w-0.5 h-0.5 rounded-full bg-emerald-400 mb-[1px]" />
+                <div className="w-1 h-0.5 bg-slate-800" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'linux_router':
+      return (
+        <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-amber-950/60 via-slate-900 to-black border border-amber-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-[6px] font-mono leading-none">
+            <span className="text-[5px] text-amber-400 font-bold tracking-tighter">LINUX / VyOS</span>
+            <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+          </div>
+          <div className="flex gap-0.5 items-center justify-end">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="w-2 h-2.5 bg-slate-950 border border-slate-700 rounded-[1px] flex items-center justify-center">
+                <div className="w-0.5 h-0.5 rounded-full bg-amber-400" />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'mikrotik_router':
+      return (
+        <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-slate-200 via-slate-300 to-slate-400 border border-rose-500/50 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-[6px] font-mono leading-none text-slate-800 font-bold">
+            <span className="text-[5px] text-rose-700 font-bold tracking-tighter">MikroTik CCR</span>
+            <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+          </div>
+          <div className="flex gap-0.5 items-center justify-between">
+            <div className="w-4 h-2 bg-slate-900 border border-slate-700 rounded-[0.5px] flex items-center justify-center">
+              <span className="text-[3px] text-sky-400 font-mono">LCD</span>
+            </div>
+            <div className="flex gap-0.5">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="w-1.5 h-2 bg-slate-950 border border-slate-700 rounded-[0.5px] flex items-center justify-center">
+                  <div className="w-0.5 h-0.5 rounded-full bg-emerald-500" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+    case 'arista_7050':
+      return (
+        <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-indigo-950 via-slate-900 to-black border border-indigo-500/50 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-[6px] font-mono leading-none">
+            <span className="text-[5px] text-indigo-400 font-bold tracking-tighter">ARISTA 7050X</span>
+            <span className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+          </div>
+          <div className="flex gap-0.5 items-center justify-end">
+            <div className="grid grid-cols-4 gap-0.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-1.5 h-1 bg-slate-950 border border-indigo-900 rounded-[0.5px]" />
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+    case 'juniper_ex':
+      return (
+        <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-slate-800 via-slate-900 to-black border border-emerald-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-[6px] font-mono leading-none">
+            <span className="text-[5px] text-emerald-400 font-bold tracking-tighter">JUNIPER EX4300</span>
+            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-6 gap-0.5 mt-0.5">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="w-1.5 h-1.5 bg-slate-950 border border-slate-700 rounded-[0.5px] flex items-center justify-center">
+                <div className="w-0.5 h-0.5 rounded-full bg-emerald-400" />
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -333,8 +422,8 @@ function renderFullFrontPanel(
   selectedPortName: string | null | undefined,
   getPortStatus: (portName: string) => { isUp: boolean; hasCable: boolean }
 ) {
-  const isRouter = type === 'router' || type === 'router4331' || type === 'router1941';
-  const isSwitch = type === 'switch' || type === 'switch3560' || type === 'l3switch' || type === 'nexus9000';
+  const isRouter = type === 'router' || type === 'router4331' || type === 'router1941' || type === 'juniper_vsrx' || type === 'linux_router' || type === 'mikrotik_router';
+  const isSwitch = type === 'switch' || type === 'switch2960_48' || type === 'switch3560' || type === 'switch3850' || type === 'switch9300' || type === 'l3switch' || type === 'nexus9000' || type === 'arista_7050' || type === 'juniper_ex';
 
   return (
     <div className="w-full max-w-4xl bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-2xl flex flex-col gap-4">

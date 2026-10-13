@@ -4,6 +4,7 @@ import {
   DeviceConfig,
   DeviceWindowState,
   Link,
+  NetworkOsType,
 } from '../types/network';
 import { DEVICE_SPECS } from '../engine/deviceSpecs';
 import {
@@ -13,6 +14,7 @@ import {
   CliSession,
   generateRunningConfig,
 } from '../engine/cliEngine';
+import { VENDOR_OS_PROFILES } from '../engine/cli/multiVendorEngines';
 import {
   Terminal,
   Settings,
@@ -472,6 +474,36 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         'clear mac': 'clear mac address-table dynamic',
         'clear ip route': 'clear ip route *',
         'clear ip ospf': 'clear ip ospf process',
+
+        // Multi-Vendor Junos completions
+        'sh int ter': 'show interfaces terse',
+        'sh int terse': 'show interfaces terse',
+        'sh rou': 'show route',
+        'sh route': 'show route',
+        'set int': 'set interfaces ',
+        'com': 'commit',
+        'com check': 'commit check',
+        'rol': 'rollback 0',
+
+        // Multi-Vendor Linux completions
+        'ip a': 'ip addr show',
+        'ip addr': 'ip addr show',
+        'ip r': 'ip route show',
+        'ip n': 'ip neigh show',
+        'ip neigh': 'ip neigh show',
+
+        // Multi-Vendor Arista completions
+        'sh int st': 'show interfaces status',
+        'sh run san': 'show running-config sanitized',
+        'sh lldp': 'show lldp neighbors',
+
+        // Multi-Vendor MikroTik completions
+        '/ip addr': '/ip address print',
+        '/ip addr pr': '/ip address print',
+        '/ip rou': '/ip route print',
+        '/ip rou pr': '/ip route print',
+        '/int pr': '/interface print',
+        '/export': '/export',
       };
 
       // Pipe output filter autocomplete (e.g. "sh run | inc" -> "sh run | include ")
@@ -958,138 +990,175 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
           </div>
         )}
 
-        {/* TAB 1: CISCO IOS CLI TERMINAL */}
-        {activeTab === 'cli' && (
-          <div
-            className="flex-1 flex flex-col p-3 font-mono text-xs overflow-hidden bg-black text-emerald-400"
-            onClick={() => inputRef.current?.focus()}
-          >
-            {/* Terminal Mini Action Toolbar */}
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-900 select-none">
-              <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                <span className="text-emerald-400 font-bold">IOS-Style CLI</span>
-                <span className="text-slate-600">|</span>
-                <span>{device.config.hostname || device.name}</span>
-                {cliSession.debugFlags?.icmp && (
-                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
-                    DEBUG: ICMP ON
-                  </span>
-                )}
-                {cliSession.debugFlags?.ospfEvents && (
-                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
-                    DEBUG: OSPF ON
-                  </span>
-                )}
-              </div>
+        {/* TAB 1: UNIVERSAL MULTI-VENDOR CLI TERMINAL */}
+        {activeTab === 'cli' && (() => {
+          const currentOs: NetworkOsType = device.config.networkOs || 'cisco-ios';
+          const terminalTheme: Record<NetworkOsType, { text: string; prompt: string; bg: string }> = {
+            'cisco-ios': { text: 'text-emerald-300', prompt: 'text-emerald-400', bg: 'bg-black' },
+            'juniper-junos': { text: 'text-teal-200', prompt: 'text-teal-400', bg: 'bg-slate-950' },
+            'arista-eos': { text: 'text-sky-200', prompt: 'text-sky-400', bg: 'bg-black' },
+            'linux-vyos': { text: 'text-amber-200', prompt: 'text-amber-400', bg: 'bg-black' },
+            'mikrotik-routeros': { text: 'text-rose-200', prompt: 'text-rose-400', bg: 'bg-neutral-950' },
+          };
+          const theme = terminalTheme[currentOs] || terminalTheme['cisco-ios'];
+          return (
+            <div
+              className={`flex-1 flex flex-col p-3 font-mono text-xs overflow-hidden ${theme.bg} ${theme.text}`}
+              onClick={() => inputRef.current?.focus()}
+            >
+              {/* Terminal Mini Action Toolbar */}
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-900 select-none">
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  {/* Multi-Vendor NOS Selector */}
+                  <div className="flex items-center gap-1.5 bg-slate-900/90 px-2 py-0.5 rounded-lg border border-slate-800">
+                    <span className="text-[10px] text-slate-400 font-semibold">NOS:</span>
+                    <select
+                      value={currentOs}
+                      onChange={(e) => {
+                        const newOs = e.target.value as NetworkOsType;
+                        const updated = { ...device.config, networkOs: newOs };
+                        onUpdateDeviceConfig(device.id, updated);
+                        const prof = VENDOR_OS_PROFILES[newOs];
+                        setTerminalOutput((prev) => [
+                          ...prev,
+                          `\n[System: Switching Network OS Dialect to ${prof.name}]`,
+                          prof.banner,
+                          ``,
+                        ]);
+                      }}
+                      className="bg-transparent text-[10px] font-bold text-sky-400 outline-none cursor-pointer"
+                    >
+                      <option value="cisco-ios" className="bg-slate-900 text-white">Cisco IOS / IOS-XE</option>
+                      <option value="juniper-junos" className="bg-slate-900 text-white">Juniper Junos OS</option>
+                      <option value="arista-eos" className="bg-slate-900 text-white">Arista EOS</option>
+                      <option value="linux-vyos" className="bg-slate-900 text-white">Linux / VyOS</option>
+                      <option value="mikrotik-routeros" className="bg-slate-900 text-white">MikroTik RouterOS</option>
+                    </select>
+                  </div>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRequestAiDeviceAudit();
-                  }}
-                  disabled={isAdvisorLoading}
-                  className="px-2 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1 border border-indigo-500/40 cursor-pointer disabled:opacity-50"
-                  title="Ask Gemini TAC to audit this device configuration"
-                >
-                  {isAdvisorLoading ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <span className="text-slate-600">|</span>
+                  <span>{device.config.hostname || device.name}</span>
+                  {cliSession.debugFlags?.icmp && (
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
+                      DEBUG: ICMP ON
+                    </span>
                   )}
-                  AI TAC Assist
-                </button>
+                  {cliSession.debugFlags?.ospfEvents && (
+                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
+                      DEBUG: OSPF ON
+                    </span>
+                  )}
+                </div>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsCommandReferenceOpen(true);
-                  }}
-                  className="px-2 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 border border-sky-500/40 cursor-pointer"
-                  title="Open Cisco IOS Command Master Reference"
-                >
-                  <BookOpen className="w-3 h-3 text-sky-400" />
-                  Commands
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const cfg = generateRunningConfig(device);
-                    navigator.clipboard.writeText(cfg);
-                  }}
-                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
-                  title="Copy Running Configuration"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTerminalOutput([
-                      `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2`,
-                      `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
-                      ``,
-                    ]);
-                  }}
-                  className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
-                  title="Clear Terminal Screen"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* AI Advisor Response Drawer */}
-            {aiAdvisorTip && (
-              <div className="mb-2 p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-indigo-200 text-[11px] leading-relaxed relative font-sans">
-                <div className="flex items-center justify-between mb-1 font-bold text-indigo-300 flex items-center gap-1">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                    AI TAC Diagnostic Advice
-                  </span>
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setAiAdvisorTip(null);
+                      handleRequestAiDeviceAudit();
                     }}
-                    className="text-slate-400 hover:text-white cursor-pointer"
+                    disabled={isAdvisorLoading}
+                    className="px-2 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1 border border-indigo-500/40 cursor-pointer disabled:opacity-50"
+                    title="Ask Gemini TAC to audit this device configuration"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    {isAdvisorLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                    )}
+                    AI TAC Assist
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsCommandReferenceOpen(true);
+                    }}
+                    className="px-2 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 border border-sky-500/40 cursor-pointer"
+                    title="Open Multi-Vendor CLI Rosetta Stone & Command Reference"
+                  >
+                    <BookOpen className="w-3 h-3 text-sky-400" />
+                    CLI Matrix
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cfg = generateRunningConfig(device);
+                      navigator.clipboard.writeText(cfg);
+                    }}
+                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
+                    title="Copy Running Configuration"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const prof = VENDOR_OS_PROFILES[currentOs];
+                      setTerminalOutput([
+                        prof.banner,
+                        ``,
+                      ]);
+                    }}
+                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
+                    title="Clear Terminal Screen"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="whitespace-pre-wrap">{aiAdvisorTip}</div>
               </div>
-            )}
 
-            <div className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar pr-1">
-              {terminalOutput.map((line, idx) => (
-                <div key={idx} className="whitespace-pre-wrap leading-tight">
-                  {line}
+              {/* AI Advisor Response Drawer */}
+              {aiAdvisorTip && (
+                <div className="mb-2 p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-indigo-200 text-[11px] leading-relaxed relative font-sans">
+                  <div className="flex items-center justify-between mb-1 font-bold text-indigo-300 flex items-center gap-1">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      AI TAC Diagnostic Advice
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAiAdvisorTip(null);
+                      }}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="whitespace-pre-wrap">{aiAdvisorTip}</div>
                 </div>
-              ))}
-              <div ref={terminalEndRef} />
-            </div>
+              )}
 
-            {/* Input Line with Realistic IOS Prompt */}
-            <form onSubmit={handleCliSubmit} className="flex items-center mt-2 pt-1 border-t border-slate-900">
-              <span className="text-emerald-400 font-bold mr-1.5 select-none">
-                {getPrompt(device, cliSession)}
-              </span>
-              <input
-                ref={inputRef}
-                type="text"
-                value={cliInput}
-                onChange={(e) => setCliInput(e.target.value)}
-                onKeyDown={handleCliKeyDown}
-                className="flex-1 bg-transparent text-emerald-300 outline-none font-mono text-xs"
-                autoFocus
-                spellCheck={false}
-              />
-            </form>
-          </div>
-        )}
+              <div className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar pr-1">
+                {terminalOutput.map((line, idx) => (
+                  <div key={idx} className="whitespace-pre-wrap leading-tight">
+                    {line}
+                  </div>
+                ))}
+                <div ref={terminalEndRef} />
+              </div>
+
+              {/* Input Line with Realistic Multi-Vendor Prompt */}
+              <form onSubmit={handleCliSubmit} className="flex items-center mt-2 pt-1 border-t border-slate-900">
+                <span className={`${theme.prompt} font-bold mr-1.5 select-none whitespace-pre`}>
+                  {getPrompt(device, cliSession)}
+                </span>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={cliInput}
+                  onChange={(e) => setCliInput(e.target.value)}
+                  onKeyDown={handleCliKeyDown}
+                  className={`flex-1 bg-transparent ${theme.text} outline-none font-mono text-xs`}
+                  autoFocus
+                  spellCheck={false}
+                />
+              </form>
+            </div>
+          );
+        })()}
 
         {/* TAB 2: CONFIGURATION GUI */}
         {activeTab === 'config' && (

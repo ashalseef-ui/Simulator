@@ -68,6 +68,61 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
     supportsServices: false,
     tags: ['Compact ISR', 'Branch Router', 'HWIC Serial'],
   },
+  juniper_vsrx: {
+    type: 'juniper_vsrx',
+    displayName: 'Juniper vSRX Gateway (Junos OS)',
+    category: 'Routers',
+    description: 'Enterprise virtual security and routing gateway running Juniper Junos OS. 4x Gigabit ports, transactional candidate configuration, and OSPF.',
+    defaultPorts: [
+      { name: 'ge-0/0/0', speed: 1000 },
+      { name: 'ge-0/0/1', speed: 1000 },
+      { name: 'ge-0/0/2', speed: 1000 },
+      { name: 'ge-0/0/3', speed: 1000 },
+    ],
+    icon: 'Waypoints',
+    supportsCli: true,
+    supportsDesktop: false,
+    supportsServices: false,
+    tags: ['Juniper Networks', 'Junos OS', 'Candidate Config', 'Enterprise WAN'],
+  },
+  linux_router: {
+    type: 'linux_router',
+    displayName: 'Linux / VyOS Gateway (iproute2)',
+    category: 'Routers',
+    description: 'Open-source Linux routing appliance with Debian iproute2 suite (ip addr, ip route, ping, iptables) and VyOS command line.',
+    defaultPorts: [
+      { name: 'eth0', speed: 1000 },
+      { name: 'eth1', speed: 1000 },
+      { name: 'eth2', speed: 1000 },
+      { name: 'eth3', speed: 1000 },
+    ],
+    icon: 'Cpu',
+    supportsCli: true,
+    supportsDesktop: false,
+    supportsServices: false,
+    tags: ['Linux Network OS', 'VyOS', 'iproute2', 'Open Networking'],
+  },
+  mikrotik_router: {
+    type: 'mikrotik_router',
+    displayName: 'MikroTik CCR Cloud Router (RouterOS)',
+    category: 'Routers',
+    description: 'High-performance Carrier Cloud Core Router running MikroTik RouterOS v7 with hierarchical menu CLI and fast routing engine.',
+    defaultPorts: [
+      { name: 'ether1', speed: 1000 },
+      { name: 'ether2', speed: 1000 },
+      { name: 'ether3', speed: 1000 },
+      { name: 'ether4', speed: 1000 },
+      { name: 'ether5', speed: 1000 },
+      { name: 'ether6', speed: 1000 },
+      { name: 'ether7', speed: 1000 },
+      { name: 'ether8', speed: 1000 },
+    ],
+    icon: 'Waypoints',
+    supportsCli: true,
+    supportsDesktop: false,
+    supportsServices: false,
+    tags: ['MikroTik', 'RouterOS v7', 'CCR', 'Hierarchical Menu'],
+  },
 
   // SWITCHES
   switch: {
@@ -186,6 +241,36 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
     supportsDesktop: false,
     supportsServices: false,
     tags: ['Data Center', 'Spine-Leaf', 'High-Density Fabric'],
+  },
+  arista_7050: {
+    type: 'arista_7050',
+    displayName: 'Arista 7050X DC Switch (EOS)',
+    category: 'Switches',
+    description: 'Data Center Spine/Leaf High-Density Switch running Arista EOS. 16x 10G/1G interfaces, Linux kernel with Bash shell, and wire-speed L2/L3.',
+    defaultPorts: Array.from({ length: 16 }, (_, i) => ({
+      name: `Et${i + 1}`,
+      speed: 1000 as const,
+    })),
+    icon: 'Boxes',
+    supportsCli: true,
+    supportsDesktop: false,
+    supportsServices: false,
+    tags: ['Arista Networks', 'EOS', 'Linux Bash', 'Spine-Leaf'],
+  },
+  juniper_ex: {
+    type: 'juniper_ex',
+    displayName: 'Juniper EX4300 Switch (Junos OS)',
+    category: 'Switches',
+    description: 'Enterprise Layer 3 Campus & Data Center Switch running Junos OS. 24x Gigabit ports, 802.1Q VLANs, and IRB routed interfaces.',
+    defaultPorts: Array.from({ length: 24 }, (_, i) => ({
+      name: `ge-0/0/${i}`,
+      speed: 1000 as const,
+    })),
+    icon: 'Network',
+    supportsCli: true,
+    supportsDesktop: false,
+    supportsServices: false,
+    tags: ['Juniper Networks', 'Junos OS', 'IRB', 'Campus L3 Switch'],
   },
 
   // SECURITY & FIREWALLS
@@ -404,13 +489,18 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
   const spec = DEVICE_SPECS[type];
   const interfaces: Record<string, DeviceInterface> = {};
 
-  const isSwitchType = type === 'switch' || type === 'switch3560' || type === 'l3switch' || type === 'nexus9000';
-  const isRouterType = type === 'router' || type === 'router4331' || type === 'router1941' || type === 'firewall' || type === 'firepower';
+  const isSwitchType = type === 'switch' || type === 'switch3560' || type === 'l3switch' || type === 'nexus9000' || type === 'arista_7050' || type === 'juniper_ex';
+  const isRouterType = type === 'router' || type === 'router4331' || type === 'router1941' || type === 'firewall' || type === 'firepower' || type === 'juniper_vsrx' || type === 'linux_router' || type === 'mikrotik_router';
+
+  let networkOs: any = 'cisco-ios';
+  if (type === 'juniper_vsrx' || type === 'juniper_ex') networkOs = 'juniper-junos';
+  else if (type === 'arista_7050') networkOs = 'arista-eos';
+  else if (type === 'linux_router') networkOs = 'linux-vyos';
+  else if (type === 'mikrotik_router') networkOs = 'mikrotik-routeros';
 
   spec.defaultPorts.forEach((p) => {
-    // Routers and Firewalls default to administratively shutdown in IOS-compatible CLI
-    // Switches and End Devices default to up
-    const isShutdownDefault = isRouterType;
+    // Routers and Firewalls default to administratively shutdown in Cisco; Juniper/Linux/MikroTik default to up
+    const isShutdownDefault = isRouterType && networkOs === 'cisco-ios';
     interfaces[p.name] = {
       name: p.name,
       mac: generateRandomMac(),
@@ -425,10 +515,11 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
 
   const baseConfig: DeviceConfig = {
     hostname,
+    networkOs,
     interfaces,
     vlans: { 1: { id: 1, name: 'default' } },
     routes: [],
-    ipRoutingEnabled: isRouterType || type === 'l3switch' || type === 'switch3560' || type === 'nexus9000',
+    ipRoutingEnabled: isRouterType || type === 'l3switch' || type === 'switch3560' || type === 'nexus9000' || type === 'arista_7050' || type === 'juniper_ex',
     spanningTreePriority: 32768,
     macTable: [],
     arpTable: [],
@@ -562,12 +653,12 @@ export function validateCabling(
   }
 
   // End devices, Routers, and Firewalls are MDI devices
-  const mdiTypes = ['pc', 'laptop', 'server', 'ipphone', 'printer', 'router', 'router4331', 'router1941', 'firewall', 'firepower', 'home_router'];
+  const mdiTypes = ['pc', 'laptop', 'server', 'ipphone', 'printer', 'router', 'router4331', 'router1941', 'firewall', 'firepower', 'home_router', 'juniper_vsrx', 'linux_router', 'mikrotik_router'];
   const isMdiA = mdiTypes.includes(devA.type);
   const isMdiB = mdiTypes.includes(devB.type);
 
   // Switches, Controllers, APs, and Clouds are MDI-X devices
-  const mdixTypes = ['switch', 'switch3560', 'l3switch', 'nexus9000', 'wlc', 'ap', 'cloud', 'mpls_cloud', 'modem'];
+  const mdixTypes = ['switch', 'switch2960_48', 'switch3560', 'switch3850', 'switch9300', 'l3switch', 'nexus9000', 'arista_7050', 'juniper_ex', 'wlc', 'ap', 'cloud', 'mpls_cloud', 'modem'];
   const isMdixA = mdixTypes.includes(devA.type);
   const isMdixB = mdixTypes.includes(devB.type);
 

@@ -425,6 +425,92 @@ export function simulatePing(
     const hop = forwardPath.hops[i];
     const isLastHop = i === forwardPath.hops.length - 1;
 
+    // Check Port Security if entering a switch port
+    const ingressIface = hop.toDev.config.interfaces[hop.toPort];
+    if (ingressIface?.portSecurity?.enabled) {
+      const ps = ingressIface.portSecurity;
+      const srcMac = hop.srcMac;
+      const knownMacs = ps.stickyMacs || [];
+
+      // If interface is already err-disabled
+      if (ps.state === 'err-disabled' || ingressIface.status === 'down') {
+        steps.push({
+          id: `step_psec_drop_${Date.now()}_${stepCounter}`,
+          stepIndex: stepCounter++,
+          totalSteps: totalHopsCount,
+          type: 'ICMP',
+          stage: 'Port-Security Err-Disable Drop',
+          fromDeviceId: hop.fromDev.id,
+          toDeviceId: hop.toDev.id,
+          fromPort: hop.fromPort,
+          toPort: hop.toPort,
+          linkId: hop.linkId,
+          status: 'drop',
+          message: `Frame dropped on ${hop.toDev.name} ${hop.toPort}: Interface is in err-disabled state due to port-security violation.`,
+          l2Frame: { preamble: '10101011', srcMac: hop.srcMac, dstMac: hop.dstMac, type: '0x0800', vlan: hop.vlanTag },
+          l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl, protocol: 'ICMP', srcIp: currentSrcIp, dstIp: currentDstIp },
+          l4Payload: { protocol: 'ICMP', summary: 'Dropped: Port is in err-disabled state', details: { port: hop.toPort, device: hop.toDev.name } },
+        });
+        return { steps, success: false, error: `Port ${hop.toPort} on ${hop.toDev.name} is err-disabled.` };
+      }
+
+      // Check if MAC is authorized or can be learned
+      if (!knownMacs.includes(srcMac)) {
+        if (knownMacs.length >= (ps.maxMacs || 1)) {
+          // Security Violation Triggered!
+          ps.violationCount = (ps.violationCount || 0) + 1;
+          const violationMode = ps.violation || 'shutdown';
+
+          if (violationMode === 'shutdown') {
+            ps.state = 'err-disabled';
+            ingressIface.status = 'down';
+            steps.push({
+              id: `step_psec_violation_${Date.now()}_${stepCounter}`,
+              stepIndex: stepCounter++,
+              totalSteps: totalHopsCount,
+              type: 'ICMP',
+              stage: 'Port-Security Violation (Shutdown)',
+              fromDeviceId: hop.fromDev.id,
+              toDeviceId: hop.toDev.id,
+              fromPort: hop.fromPort,
+              toPort: hop.toPort,
+              linkId: hop.linkId,
+              status: 'drop',
+              message: `%PM-4-ERR_DISABLE: psecure-violation error detected on ${hop.toPort}, putting ${hop.toPort} in err-disable state (Source MAC: ${srcMac})`,
+              l2Frame: { preamble: '10101011', srcMac: hop.srcMac, dstMac: hop.dstMac, type: '0x0800', vlan: hop.vlanTag },
+              l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl, protocol: 'ICMP', srcIp: currentSrcIp, dstIp: currentDstIp },
+              l4Payload: { protocol: 'ICMP', summary: 'Port Security Violation - Port Shutdown', details: { srcMac, maxAllowed: ps.maxMacs || 1 } },
+            });
+            return { steps, success: false, error: `Port-security violation: ${hop.toPort} placed into err-disable state.` };
+          } else {
+            // restrict or protect
+            steps.push({
+              id: `step_psec_drop_${Date.now()}_${stepCounter}`,
+              stepIndex: stepCounter++,
+              totalSteps: totalHopsCount,
+              type: 'ICMP',
+              stage: `Port-Security Violation (${violationMode})`,
+              fromDeviceId: hop.fromDev.id,
+              toDeviceId: hop.toDev.id,
+              fromPort: hop.fromPort,
+              toPort: hop.toPort,
+              linkId: hop.linkId,
+              status: 'drop',
+              message: `Frame dropped on ${hop.toDev.name} ${hop.toPort}: Port-security violation count incremented to ${ps.violationCount} (mode: ${violationMode}).`,
+              l2Frame: { preamble: '10101011', srcMac: hop.srcMac, dstMac: hop.dstMac, type: '0x0800', vlan: hop.vlanTag },
+              l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl, protocol: 'ICMP', srcIp: currentSrcIp, dstIp: currentDstIp },
+              l4Payload: { protocol: 'ICMP', summary: `Port Security Violation - ${violationMode}`, details: { srcMac, violationCount: ps.violationCount } },
+            });
+            return { steps, success: false, error: `Port-security ${violationMode} dropped unauthorized MAC ${srcMac}.` };
+          }
+        } else {
+          // Dynamically learn sticky MAC if capacity allows
+          if (!ps.stickyMacs) ps.stickyMacs = [];
+          ps.stickyMacs.push(srcMac);
+        }
+      }
+    }
+
     // Check Inbound ACL if entering a routed device
     if (hop.toDev.type === 'router' || hop.toDev.type === 'firewall' || hop.toDev.type === 'l3switch') {
       const inIface = hop.toDev.config.interfaces[hop.toPort];

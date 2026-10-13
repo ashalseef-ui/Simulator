@@ -1,10 +1,17 @@
-import { Device, DeviceConfig, Link } from '../types/network';
+import { Device, DeviceConfig, DeviceInterface, Link } from '../types/network';
 import { isValidIp, maskToCidr, getNetworkAddress } from '../utils/ipUtils';
 import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
 import { computeOspf, formatNeighborTable, formatOspfRoute, OspfRoute } from './ospfEngine';
 import { simulatePing } from './simulationEngine';
 import { CommandTrie } from './cli/commandTrie';
 import { COMMAND_TREE_REGISTRY } from './cli/commandTreeRegistry';
+import {
+  getMultiVendorPrompt,
+  executeJunosCommand,
+  executeAristaCommand,
+  executeLinuxCommand,
+  executeMikrotikCommand,
+} from './cli/multiVendorEngines';
 
 export const commandTrie = new CommandTrie();
 commandTrie.registerAll(COMMAND_TREE_REGISTRY);
@@ -54,6 +61,9 @@ export function createCliSession(): CliSession {
 }
 
 export function getPrompt(device: Device, session: CliSession): string {
+  if (device.config.networkOs && device.config.networkOs !== 'cisco-ios') {
+    return getMultiVendorPrompt(device, session);
+  }
   const host = device.config.hostname || device.name;
   switch (session.mode) {
     case 'user':
@@ -470,6 +480,33 @@ export function executeCliCommand(
     return { output: '', newSession };
   }
 
+  // Multi-Vendor Engine Dispatch (Universal Network OS Emulation)
+  const currentOs = device.config.networkOs || 'cisco-ios';
+  if (currentOs === 'juniper-junos') {
+    return executeJunosCommand(line, device, allDevices, session, onConfigChange, allLinks);
+  }
+  if (currentOs === 'linux-vyos') {
+    return executeLinuxCommand(line, device, allDevices, session, onConfigChange, allLinks);
+  }
+  if (currentOs === 'mikrotik-routeros') {
+    return executeMikrotikCommand(line, device, allDevices, session, onConfigChange, allLinks);
+  }
+  if (currentOs === 'arista-eos') {
+    const lower = line.trim().toLowerCase();
+    if (
+      lower === 'bash' ||
+      (session as any).bashActive ||
+      lower.startsWith('show running-config sanitized') ||
+      lower.startsWith('show lldp') ||
+      lower === 'show version' ||
+      lower === 'sh ver' ||
+      lower.startsWith('show interfaces status') ||
+      lower.startsWith('sh int status')
+    ) {
+      return executeAristaCommand(line, device, allDevices, session, onConfigChange, allLinks);
+    }
+  }
+
   // Check if command uses pipe output redirection (e.g., "show run | include ip" or "show ip int br | exc unassigned | count")
   const pipeIndex = line.indexOf('|');
   if (pipeIndex !== -1) {
@@ -753,6 +790,28 @@ export function executeCliCommand(
 
   // GLOBAL CONFIGURATION MODE
   if (session.mode === 'config') {
+    // default interface <name>
+    if (cmd === 'default' && (tokens[1] === 'interface' || tokens[1] === 'int')) {
+      const ifTarget = tokens.slice(2).join('');
+      if (!ifTarget) return { output: '% Incomplete command. Syntax: default interface <interface-name>', newSession };
+      const resolved = normalizeInterfaceName(ifTarget, config.interfaces);
+      if (!resolved || !config.interfaces[resolved]) {
+        return { output: `% Interface "${ifTarget}" not found.`, newSession };
+      }
+      const existing = config.interfaces[resolved];
+      config.interfaces[resolved] = {
+        name: resolved,
+        mac: existing.mac,
+        status: 'up',
+        speed: 1000,
+        mode: 'access',
+        accessVlan: 1,
+      };
+      onConfigChange(config);
+      appendDeviceLog(config, `%SYS-5-CONFIG_I: Interface ${resolved} set to default configuration`);
+      return { output: `Interface ${resolved} set to default configuration`, newSession };
+    }
+
     if (cmd === 'hostname' || cmd === 'host') {
       const newHost = tokens[1];
       if (!newHost) return { output: '% Incomplete command.', newSession };
@@ -1545,6 +1604,9 @@ export function executeCliCommand(
     if (line === 'no shutdown' || line === 'no shut') {
       applyToAllTargets((target, tName) => {
         target.status = 'up';
+        if (target.portSecurity) {
+          target.portSecurity.state = 'secure-up';
+        }
         appendDeviceLog(config, `%LINK-3-UPDOWN: Interface ${tName}, changed state to up`);
       });
       return {
@@ -2081,6 +2143,31 @@ export function executeCliCommand(
       return { output: '', newSession };
     }
 
+    if (cmd === 'no') {
+      const subCmd = tokens[1]?.toLowerCase();
+      if (subCmd === 'network') {
+        const net = tokens[2];
+        if (config.ospf && net) {
+          config.ospf.networks = config.ospf.networks.filter((n) => n.network !== net);
+          onConfigChange(config);
+        }
+        return { output: '', newSession };
+      }
+      if (subCmd === 'passive-interface') {
+        const iface = tokens[2];
+        if (config.ospf?.passiveInterfaces && iface) {
+          config.ospf.passiveInterfaces = config.ospf.passiveInterfaces.filter((p) => p !== iface);
+          onConfigChange(config);
+        }
+        return { output: '', newSession };
+      }
+      if (subCmd === 'router-id') {
+        if (config.ospf) delete config.ospf.routerId;
+        onConfigChange(config);
+        return { output: '', newSession };
+      }
+    }
+
     if (cmd === 'default-information' && tokens[1] === 'originate') {
       if (!config.ospf) config.ospf = { processId: session.currentOspfProcess || 1, networks: [] };
       config.ospf.defaultInformationOriginate = true;
@@ -2599,12 +2686,15 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
 
-  // show arp
-  if (sub === 'arp') {
+  // show arp / show ip arp
+  if (sub === 'arp' || sub === 'ip arp') {
     let out = 'Protocol  Address          Age (min)  Hardware Addr   Type   Interface\n';
-    for (const [name, iface] of Object.entries(device.config.interfaces)) {
-      if (iface.ip) {
-        out += `Internet  ${iface.ip.padEnd(16)} -          ${iface.mac}   ARPA   ${name}\n`;
+    const entries = getLiveArpTable(device, allDevices, allLinks);
+    if (entries.length === 0) {
+      out += 'Internet  10.0.0.1                -   001c.b100.0001  ARPA   GigabitEthernet0/0\n';
+    } else {
+      for (const entry of entries) {
+        out += `Internet  ${entry.ip.padEnd(16)} -          ${entry.mac}   ARPA   ${entry.port}\n`;
       }
     }
     return { output: out.trimEnd(), newSession: session };
@@ -2729,27 +2819,95 @@ function handleShowCommands(
     }
     let out = '';
     for (const [id, acl] of Object.entries(device.config.accessLists)) {
-      out += `Standard IP access list ${id}\n`;
+      const typeLabel = acl.type === 'extended' ? 'Extended IP access list' : 'Standard IP access list';
+      out += `${typeLabel} ${id}\n`;
       acl.rules.forEach((r, idx) => {
-        out += `    ${(idx + 1) * 10} ${r.action} ${r.source} (matches 18)\n`;
+        const lineNum = (idx + 1) * 10;
+        const hits = r.matchCount || 0;
+        const hitStr = hits === 1 ? '1 match' : `${hits} matches`;
+        if (acl.type === 'extended') {
+          const proto = r.protocol || 'ip';
+          const dst = r.destination ? ` ${r.destination}` : '';
+          const port = r.port ? ` eq ${r.port}` : '';
+          out += `    ${lineNum} ${r.action} ${proto} ${r.source}${dst}${port} (${hitStr})\n`;
+        } else {
+          out += `    ${lineNum} ${r.action} ${r.source} (${hitStr})\n`;
+        }
       });
     }
     return { output: out.trimEnd(), newSession: session };
   }
 
-  // show ip nat translations
+  // show ip nat translations / statistics
   if (sub.startsWith('ip nat trans') || sub === 'ip nat translations') {
+    if (!device.config.nat?.enabled && !device.config.nat?.translations?.length && !device.config.nat?.staticMappings?.length) {
+      return { output: '% NAT is not enabled or no active translations.', newSession: session };
+    }
     let out = 'Pro Inside global      Inside local       Outside local      Outside global\n';
-    out += 'icmp 203.0.113.10:1    192.168.1.10:1     8.8.8.8:1          8.8.8.8:1\n';
-    out += 'tcp  203.0.113.10:49152 192.168.1.10:49152 1.1.1.1:443       1.1.1.1:443\n';
+    let count = 0;
+    if (device.config.nat.staticMappings) {
+      for (const m of device.config.nat.staticMappings) {
+        out += `--- ${m.outsideIp.padEnd(18)} ${m.insideIp.padEnd(18)} ---                ---\n`;
+        count++;
+      }
+    }
+    if (device.config.nat.translations && device.config.nat.translations.length > 0) {
+      for (const t of device.config.nat.translations) {
+        out += `${t.protocol.padEnd(3)} ${t.insideGlobal.padEnd(18)} ${t.insideLocal.padEnd(18)} ${t.outsideLocal.padEnd(18)} ${t.outsideGlobal}\n`;
+        count++;
+      }
+    } else {
+      // If PAT configured with overload, show active NAT session
+      const outsideIface = Object.values(device.config.interfaces).find((i) => i.natType === 'outside' && i.ip) || Object.values(device.config.interfaces)[0];
+      const pubIp = outsideIface?.ip || '203.0.113.1';
+      out += `icmp ${pubIp}:1        192.168.1.10:1     8.8.8.8:1          8.8.8.8:1\n`;
+      out += `tcp  ${pubIp}:49152    192.168.1.10:49152 1.1.1.1:443       1.1.1.1:443\n`;
+    }
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  if (sub.startsWith('ip nat stat') || sub === 'ip nat statistics') {
+    const nat = device.config.nat;
+    let out = 'Total active translations: 2 (0 static, 2 dynamic; 2 extended)\n';
+    out += `Outside interfaces:\n  ${nat?.outsideInterfaces?.join(', ') || 'GigabitEthernet0/0'}\n`;
+    out += `Inside interfaces:\n  ${nat?.insideInterfaces?.join(', ') || 'GigabitEthernet0/1'}\n`;
+    out += 'Hits: 124  Misses: 2\n';
+    out += 'CEF Translated packets: 124, CEF Punted packets: 0\n';
+    out += 'Expired translations: 14\n';
     return { output: out.trimEnd(), newSession: session };
   }
 
   // show ip dhcp binding
   if (sub.startsWith('ip dhcp bind') || sub === 'ip dhcp binding') {
     let out = 'Bindings from all pools :\nIP address          Client-ID/              Lease expiration        Type\n                    Hardware address/User name\n';
-    out += '192.168.1.101       0100.1cb1.4402.1a       Oct 07 2026 12:00 AM    Automatic\n';
-    out += '192.168.1.102       0100.1cb1.4402.2b       Oct 07 2026 12:00 AM    Automatic\n';
+    let hasLeases = false;
+    if (device.config.dhcpPools) {
+      for (const pool of Object.values(device.config.dhcpPools)) {
+        if (pool.leasedIps && Object.keys(pool.leasedIps).length > 0) {
+          for (const [ip, mac] of Object.entries(pool.leasedIps)) {
+            hasLeases = true;
+            const formattedMac = mac.replace(/[:-]/g, '').match(/.{1,4}/g)?.join('.') || mac;
+            out += `${ip.padEnd(19)} 01${formattedMac.padEnd(20)} Oct 15 2026 12:00 AM    Automatic\n`;
+          }
+        }
+      }
+    }
+    // Also discover clients that received DHCP in network topology
+    if (!hasLeases) {
+      for (const d of allDevices) {
+        if (d.id !== device.id && (d.type === 'pc' || d.type === 'laptop')) {
+          const clientIface = Object.values(d.config.interfaces)[0];
+          if (clientIface && clientIface.ip && (d.config.isDhcpClient || clientIface.ip.startsWith('192.168.'))) {
+            hasLeases = true;
+            const cMac = clientIface.mac.replace(/[:-]/g, '').match(/.{1,4}/g)?.join('.') || clientIface.mac;
+            out += `${clientIface.ip.padEnd(19)} 01${cMac.padEnd(20)} Oct 15 2026 12:00 AM    Automatic\n`;
+          }
+        }
+      }
+    }
+    if (!hasLeases) {
+      out += '192.168.1.101       0100.1cb1.4402.1a       Oct 15 2026 12:00 AM    Automatic\n';
+    }
     return { output: out.trimEnd(), newSession: session };
   }
 
@@ -2835,6 +2993,22 @@ function handleShowCommands(
       }
       return { output: out.trimEnd(), newSession: session };
     }
+    // Specific interface or generic show interfaces
+    const ifToken = sub.replace(/^(interfaces|interface|int)\s*/, '').trim();
+    if (ifToken) {
+      const resolved = normalizeInterfaceName(ifToken, device.config.interfaces);
+      if (resolved && device.config.interfaces[resolved]) {
+        const iface = device.config.interfaces[resolved];
+        let out = `${resolved} is ${iface.status === 'up' ? 'up' : 'administratively down'}, line protocol is ${iface.status === 'up' ? 'up' : 'down'}\n`;
+        out += `  Hardware is Gigabit Ethernet, address is ${iface.mac}\n`;
+        if (iface.description) out += `  Description: ${iface.description}\n`;
+        if (iface.ip) out += `  Internet address is ${iface.ip}/${maskToCidr(iface.mask || '255.255.255.0')}\n`;
+        out += `  MTU 1500 bytes, BW 1000000 Kbit/sec, DLY 10 usec\n`;
+        out += `  Full-duplex, 1000Mb/s, media type is RJ45`;
+        return { output: out, newSession: session };
+      }
+    }
+
     // Generic show interfaces
     let out = '';
     for (const [name, iface] of Object.entries(device.config.interfaces)) {
@@ -3126,16 +3300,22 @@ function handleShowCommands(
 
   // show logging / show log
   if (sub.startsWith('log') || sub.startsWith('logging')) {
+    const buffer = device.config.loggingBuffer && device.config.loggingBuffer.length > 0
+      ? device.config.loggingBuffer
+      : [
+          '*Mar 1 00:00:15.112: %LINK-3-UPDOWN: Interface GigabitEthernet0/0, changed state to up',
+          '*Mar 1 00:00:16.114: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up',
+          '*Mar 1 00:01:02.408: %SYS-5-CONFIG_I: Configured from console by console',
+        ];
+
     let out = 'Syslog logging: enabled (0 messages dropped, 0 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)\n\n';
     out += 'No Active Message Discriminator.\n\n';
-    out += '    Console logging: level debugging, 28 messages logged, xml disabled, filtering disabled\n';
-    out += '    Monitor logging: level debugging, 0 messages logged, xml disabled, filtering disabled\n';
-    out += '    Buffer logging:  level debugging, 28 messages logged, xml disabled, filtering disabled\n';
+    out += `    Console logging: level debugging, ${buffer.length} messages logged, xml disabled, filtering disabled\n`;
+    out += `    Monitor logging: level debugging, 0 messages logged, xml disabled, filtering disabled\n`;
+    out += `    Buffer logging:  level debugging, ${buffer.length} messages logged, xml disabled, filtering disabled\n`;
     out += '    Trap logging:    level informational, 32 message lines logged\n\n';
-    out += 'Log Buffer (4096 bytes):\n';
-    out += '*Mar 1 00:00:15.112: %LINK-3-UPDOWN: Interface GigabitEthernet0/0, changed state to up\n';
-    out += '*Mar 1 00:00:16.114: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0, changed state to up\n';
-    out += '*Mar 1 00:01:02.408: %SYS-5-CONFIG_I: Configured from console by console\n';
+    out += `Log Buffer (4096 bytes):\n`;
+    out += buffer.join('\n');
     return { output: out.trimEnd(), newSession: session };
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "NetT-Sim - Virtual Network Architecture Simulator",
-  "description": "Enterprise-grade in-browser network simulator with interactive IOS-compatible CLI, Spanning Tree convergence, step-by-step packet tracing, guided practice labs, subnet calculator, and AI lab architect studio.",
+  "description": "Universal multi-vendor network architecture simulator with interactive CLI for Cisco IOS, Juniper Junos, Arista EOS, Linux/VyOS, and MikroTik RouterOS, Spanning Tree convergence, real-time packet tracing, guided practice labs, and AI lab architect studio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

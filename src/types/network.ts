@@ -1,3 +1,10 @@
+export type NetworkOsType =
+  | 'cisco-ios'
+  | 'juniper-junos'
+  | 'arista-eos'
+  | 'linux-vyos'
+  | 'mikrotik-routeros';
+
 export type DeviceType =
   | 'pc'
   | 'laptop'
@@ -11,9 +18,14 @@ export type DeviceType =
   | 'switch9300'
   | 'l3switch'
   | 'nexus9000'
+  | 'arista_7050'
+  | 'juniper_ex'
   | 'router'
   | 'router4331'
   | 'router1941'
+  | 'juniper_vsrx'
+  | 'linux_router'
+  | 'mikrotik_router'
   | 'firewall'
   | 'firepower'
   | 'wlc'
@@ -206,6 +218,7 @@ export interface ArpTableEntry {
   ip: string;
   mac: string;
   port?: string;
+  interface?: string;
 }
 
 export interface StackMember {
@@ -243,6 +256,7 @@ export interface RipConfig {
 
 export interface DeviceConfig {
   hostname: string;
+  networkOs?: NetworkOsType;
   interfaces: Record<string, DeviceInterface>;
   vlans: Record<number, { id: number; name: string }>;
   routes: StaticRoute[];
