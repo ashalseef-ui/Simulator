@@ -88,6 +88,7 @@ function checkAcl(
     }
 
     if (srcMatch && dstMatch) {
+      rule.matchCount = (rule.matchCount || 0) + 1;
       return {
         permitted: rule.action === 'permit',
         matchedRule: `${rule.action.toUpperCase()} ${rule.protocol || 'ip'} ${rule.source} ${rule.destination || ''}`.trim(),

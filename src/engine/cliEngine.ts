@@ -26,6 +26,7 @@ export type CliMode =
 export interface CliSession {
   mode: CliMode;
   currentInterface?: string;
+  currentInterfaceRange?: string[];
   currentOspfProcess?: number;
   currentBgpAsn?: number;
   currentEigrpAs?: number;
@@ -62,7 +63,9 @@ export function getPrompt(device: Device, session: CliSession): string {
     case 'config':
       return `${host}(config)#`;
     case 'config-if':
-      return `${host}(config-if)#`;
+      return session.currentInterfaceRange && session.currentInterfaceRange.length > 1
+        ? `${host}(config-if-range)#`
+        : `${host}(config-if)#`;
     case 'config-subif':
       return `${host}(config-subif)#`;
     case 'config-router':
@@ -142,6 +145,212 @@ export function normalizeInterfaceName(input: string, availableInterfaces: Recor
   }
 
   return null;
+}
+
+/**
+ * Resolves a Cisco interface range expression like:
+ * "GigabitEthernet0/1 - 4", "gi0/1 - 0/4", "FastEthernet0/1 - 2, GigabitEthernet0/1"
+ */
+export function parseInterfaceRange(
+  rangeExpr: string,
+  availableInterfaces: Record<string, any>
+): string[] {
+  const chunks = rangeExpr.split(',').map((c) => c.trim()).filter(Boolean);
+  const matchedNames: string[] = [];
+
+  for (const chunk of chunks) {
+    if (chunk.includes('-')) {
+      const parts = chunk.split('-').map((p) => p.trim());
+      const startStr = parts[0];
+      const endStr = parts[1];
+
+      const startResolved = normalizeInterfaceName(startStr, availableInterfaces);
+      if (!startResolved) continue;
+
+      // Extract slot prefix and starting number
+      const numMatch = startResolved.match(/^(.*?)(\d+)$/);
+      if (!numMatch) {
+        matchedNames.push(startResolved);
+        continue;
+      }
+
+      const prefix = numMatch[1];
+      const startNum = parseInt(numMatch[2], 10);
+
+      // End number might be "4" or full "0/4" or "GigabitEthernet0/4"
+      let endNum = parseInt(endStr, 10);
+      if (isNaN(endNum)) {
+        const endNumMatch = endStr.match(/(\d+)$/);
+        endNum = endNumMatch ? parseInt(endNumMatch[1], 10) : startNum;
+      }
+
+      const minNum = Math.min(startNum, endNum);
+      const maxNum = Math.max(startNum, endNum);
+
+      for (let n = minNum; n <= maxNum; n++) {
+        const candidate = `${prefix}${n}`;
+        const candidateResolved = normalizeInterfaceName(candidate, availableInterfaces);
+        if (candidateResolved && !matchedNames.includes(candidateResolved)) {
+          matchedNames.push(candidateResolved);
+        }
+      }
+    } else {
+      const single = normalizeInterfaceName(chunk, availableInterfaces);
+      if (single && !matchedNames.includes(single)) {
+        matchedNames.push(single);
+      }
+    }
+  }
+
+  return matchedNames;
+}
+
+/**
+ * Appends a syslog message into the device's loggingBuffer.
+ */
+export function appendDeviceLog(config: DeviceConfig, message: string): void {
+  if (!config.loggingBuffer) {
+    config.loggingBuffer = [];
+  }
+  const dateStr = new Date().toLocaleTimeString('en-US', { hour12: false });
+  const formatted = `*Mar 1 ${dateStr}: ${message}`;
+  config.loggingBuffer.push(formatted);
+  if (config.loggingBuffer.length > 50) {
+    config.loggingBuffer.shift();
+  }
+}
+
+/**
+ * Returns dynamic and configured MAC entries learned from connected links and topology devices.
+ */
+export function getLiveMacTable(device: Device, allDevices: Device[], allLinks: Link[]): { vlan: number; mac: string; type: 'DYNAMIC' | 'STATIC'; port: string }[] {
+  const result: { vlan: number; mac: string; type: 'DYNAMIC' | 'STATIC'; port: string }[] = [];
+  const seen = new Set<string>();
+
+  // Add explicit statically configured or sticky MACs
+  if (device.config.macTable && device.config.macTable.length > 0) {
+    for (const e of device.config.macTable) {
+      result.push(e);
+      seen.add(`${e.vlan}:${e.mac}`);
+    }
+  }
+
+  // Add sticky port-security MACs
+  for (const [pName, iface] of Object.entries(device.config.interfaces)) {
+    if (iface.portSecurity?.enabled && iface.portSecurity.stickyMacs) {
+      for (const sm of iface.portSecurity.stickyMacs) {
+        const vlan = iface.accessVlan || 1;
+        const key = `${vlan}:${sm}`;
+        if (!seen.has(key)) {
+          result.push({ vlan, mac: sm, type: 'STATIC', port: pName });
+          seen.add(key);
+        }
+      }
+    }
+  }
+
+  // Derive live dynamic MAC learning across links connected to this switch
+  for (const link of allLinks) {
+    let localPort = '';
+    let remoteDeviceId = '';
+    let remotePort = '';
+
+    if (link.fromDevice === device.id) {
+      localPort = link.fromPort;
+      remoteDeviceId = link.toDevice;
+      remotePort = link.toPort;
+    } else if (link.toDevice === device.id) {
+      localPort = link.toPort;
+      remoteDeviceId = link.fromDevice;
+      remotePort = link.fromPort;
+    }
+
+    if (!localPort || !remoteDeviceId) continue;
+    const localIface = device.config.interfaces[localPort];
+    if (!localIface || localIface.status === 'down') continue;
+
+    const remoteDev = allDevices.find((d) => d.id === remoteDeviceId);
+    if (!remoteDev) continue;
+
+    const remoteIface = remoteDev.config.interfaces[remotePort];
+    if (!remoteIface || !remoteIface.mac) continue;
+
+    const vlan = localIface.mode === 'access' ? (localIface.accessVlan || 1) : (localIface.nativeVlan || 1);
+    const key = `${vlan}:${remoteIface.mac}`;
+    if (!seen.has(key)) {
+      result.push({ vlan, mac: remoteIface.mac, type: 'DYNAMIC', port: localPort });
+      seen.add(key);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Returns live ARP table entries computed from active interfaces and reachable neighbor IPs.
+ */
+export function getLiveArpTable(device: Device, allDevices: Device[], allLinks: Link[]): { ip: string; mac: string; port: string }[] {
+  const result: { ip: string; mac: string; port: string }[] = [];
+  const seenIps = new Set<string>();
+
+  // Add self interfaces with IP
+  for (const [pName, iface] of Object.entries(device.config.interfaces)) {
+    if (iface.ip && iface.status === 'up') {
+      result.push({ ip: iface.ip, mac: iface.mac, port: pName });
+      seenIps.add(iface.ip);
+    }
+  }
+
+  // Add explicit static ARP entries
+  if (device.config.arpTable) {
+    for (const e of device.config.arpTable) {
+      if (!seenIps.has(e.ip)) {
+        result.push({ ip: e.ip, mac: e.mac, port: e.port || 'Vlan1' });
+        seenIps.add(e.ip);
+      }
+    }
+  }
+
+  // Resolve adjacent devices on same subnet across topology links
+  for (const link of allLinks) {
+    let localPort = '';
+    let remoteDeviceId = '';
+    let remotePort = '';
+
+    if (link.fromDevice === device.id) {
+      localPort = link.fromPort;
+      remoteDeviceId = link.toDevice;
+      remotePort = link.toPort;
+    } else if (link.toDevice === device.id) {
+      localPort = link.toPort;
+      remoteDeviceId = link.fromDevice;
+      remotePort = link.fromPort;
+    }
+
+    if (!localPort || !remoteDeviceId) continue;
+    const localIface = device.config.interfaces[localPort];
+    if (!localIface || localIface.status === 'down') continue;
+
+    const remoteDev = allDevices.find((d) => d.id === remoteDeviceId);
+    if (!remoteDev) continue;
+
+    const remoteIface = remoteDev.config.interfaces[remotePort];
+    if (remoteIface && remoteIface.ip && !seenIps.has(remoteIface.ip)) {
+      result.push({ ip: remoteIface.ip, mac: remoteIface.mac, port: localPort });
+      seenIps.add(remoteIface.ip);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Produces Cisco-style '% Invalid input detected at '^' marker' error output.
+ */
+export function formatInvalidInputCaret(commandLine: string, errorPos: number): string {
+  const safePos = Math.max(0, Math.min(errorPos, commandLine.length));
+  const caretLine = ' '.repeat(safePos) + '^';
+  return `${commandLine}\n${caretLine}\n% Invalid input detected at '^' marker.`;
 }
 
 /**
@@ -314,6 +523,7 @@ export function executeCliCommand(
     // Submodes back to global config
     newSession.mode = 'config';
     newSession.currentInterface = undefined;
+    newSession.currentInterfaceRange = undefined;
     newSession.currentOspfProcess = undefined;
     newSession.currentDhcpPool = undefined;
     newSession.currentVlan = undefined;
@@ -324,6 +534,7 @@ export function executeCliCommand(
     if (session.mode !== 'user') {
       newSession.mode = 'priv';
       newSession.currentInterface = undefined;
+      newSession.currentInterfaceRange = undefined;
       newSession.currentOspfProcess = undefined;
       newSession.currentDhcpPool = undefined;
       newSession.currentVlan = undefined;
@@ -474,24 +685,52 @@ export function executeCliCommand(
     if (cmd === 'clear') {
       const sub = tokens.slice(1).join(' ').toLowerCase();
       if (sub.includes('arp')) {
+        config.arpTable = [];
+        onConfigChange(config);
+        appendDeviceLog(config, '%SYS-5-CLEAR: Dynamic ARP cache cleared.');
         return { output: '[OK] Dynamic ARP cache cleared.', newSession };
       }
       if (sub.includes('mac')) {
+        config.macTable = [];
+        onConfigChange(config);
+        appendDeviceLog(config, '%SYS-5-CLEAR: Dynamic MAC address table purged.');
         return { output: '[OK] Dynamic MAC address table entries purged.', newSession };
       }
+      if (sub.includes('logging') || sub.includes('log')) {
+        config.loggingBuffer = [];
+        onConfigChange(config);
+        return { output: 'Clear logging buffer [confirm]\n[OK] Logging buffer cleared.', newSession };
+      }
+      if (sub.includes('access-list') || sub.includes('acl')) {
+        if (config.accessLists) {
+          for (const acl of Object.values(config.accessLists)) {
+            for (const r of acl.rules) {
+              r.matchCount = 0;
+            }
+          }
+          onConfigChange(config);
+        }
+        return { output: '[OK] Access-list hit counters cleared.', newSession };
+      }
       if (sub.includes('ip route')) {
+        appendDeviceLog(config, '%ROUTING-5-RESET: IP routing table refreshed.');
         return { output: '[OK] IP routing table refreshed.', newSession };
       }
-      if (sub.includes('ip ospf process')) {
+      if (sub.includes('ip ospf process') || sub.includes('ospf')) {
+        appendDeviceLog(config, '%OSPF-5-ADJCHANGE: Process 1, neighbors reset and re-converged.');
         return { output: 'Reset ALL OSPF processes? [no]: yes\n%OSPF-5-ADJCHANGE: Process 1, Nbr 10.0.0.2 on Gi0/0 from FULL to DOWN, Neighbor Down: Interface down or detached\n%OSPF-5-ADJCHANGE: Process 1, Nbr 10.0.0.2 on Gi0/0 from DOWN to INIT\n%OSPF-5-ADJCHANGE: Process 1, Nbr 10.0.0.2 on Gi0/0 from LOADING to FULL, Loading Done', newSession };
       }
       if (sub.includes('counters')) {
         return { output: 'Clear "show interface" counters on all interfaces [confirm]\n[OK] Counters cleared.', newSession };
       }
       if (sub.includes('nat')) {
+        if (config.nat) {
+          config.nat.translations = [];
+          onConfigChange(config);
+        }
         return { output: '[OK] Dynamic NAT translations cleared.', newSession };
       }
-      return { output: '% Unsupported clear target. Try: clear arp-cache, clear mac address-table dynamic, clear ip route *, or clear counters', newSession };
+      return { output: '% Unsupported clear target. Try: clear arp-cache, clear mac address-table dynamic, clear logging, clear ip route *, or clear counters', newSession };
     }
 
     if (cmd === 'ping') {
@@ -524,11 +763,17 @@ export function executeCliCommand(
 
     if (cmd === 'interface' || cmd === 'int') {
       // Interface range handling
-      if (tokens[1] === 'range') {
+      if (tokens[1] === 'range' || tokens[1] === 'ran') {
         const rangeStr = tokens.slice(2).join(' ');
-        const firstPort = rangeStr.split(/[-,\s]+/)[0];
-        const resolvedFirst = normalizeInterfaceName(firstPort, config.interfaces) || Object.keys(config.interfaces)[0];
-        newSession.currentInterface = resolvedFirst;
+        if (!rangeStr) {
+          return { output: '% Incomplete command. Syntax: interface range <port_list_or_range>', newSession };
+        }
+        const resolvedRange = parseInterfaceRange(rangeStr, config.interfaces);
+        if (resolvedRange.length === 0) {
+          return { output: formatInvalidInputCaret(line, line.indexOf(tokens[2] || 'range')), newSession };
+        }
+        newSession.currentInterface = resolvedRange[0];
+        newSession.currentInterfaceRange = resolvedRange;
         newSession.mode = 'config-if';
         return { output: '', newSession };
       }
@@ -1266,27 +1511,46 @@ export function executeCliCommand(
 
   // INTERFACE CONFIGURATION MODE (config-if) & (config-subif)
   if (session.mode === 'config-if' || session.mode === 'config-subif') {
-    const ifName = session.currentInterface;
-    if (!ifName || !config.interfaces[ifName]) {
+    const targetIfNames = session.currentInterfaceRange && session.currentInterfaceRange.length > 0
+      ? session.currentInterfaceRange.filter((n) => Boolean(config.interfaces[n]))
+      : (session.currentInterface && config.interfaces[session.currentInterface] ? [session.currentInterface] : []);
+
+    if (targetIfNames.length === 0) {
       newSession.mode = 'config';
       return { output: '% Interface not found.', newSession };
     }
+    const ifName = targetIfNames[0];
     const iface = config.interfaces[ifName];
+    const applyToAllTargets = (mutator: (targetIface: DeviceInterface, name: string) => void) => {
+      for (const tName of targetIfNames) {
+        const tIface = config.interfaces[tName];
+        if (tIface) mutator(tIface, tName);
+      }
+      onConfigChange(config);
+    };
 
     // shutdown / no shutdown
     if (line === 'shutdown' || line === 'shut') {
-      iface.status = 'down';
-      onConfigChange(config);
+      applyToAllTargets((target, tName) => {
+        target.status = 'down';
+        appendDeviceLog(config, `%LINK-5-CHANGED: Interface ${tName}, changed state to administratively down`);
+      });
       return {
-        output: `%LINK-5-CHANGED: Interface ${ifName}, changed state to administratively down\n%LINEPROTO-5-UPDOWN: Line protocol on Interface ${ifName}, changed state to down`,
+        output: targetIfNames.length === 1
+          ? `%LINK-5-CHANGED: Interface ${ifName}, changed state to administratively down\n%LINEPROTO-5-UPDOWN: Line protocol on Interface ${ifName}, changed state to down`
+          : '',
         newSession,
       };
     }
     if (line === 'no shutdown' || line === 'no shut') {
-      iface.status = 'up';
-      onConfigChange(config);
+      applyToAllTargets((target, tName) => {
+        target.status = 'up';
+        appendDeviceLog(config, `%LINK-3-UPDOWN: Interface ${tName}, changed state to up`);
+      });
       return {
-        output: `%LINK-3-UPDOWN: Interface ${ifName}, changed state to up\n%LINEPROTO-5-UPDOWN: Line protocol on Interface ${ifName}, changed state to up`,
+        output: targetIfNames.length === 1
+          ? `%LINK-3-UPDOWN: Interface ${ifName}, changed state to up\n%LINEPROTO-5-UPDOWN: Line protocol on Interface ${ifName}, changed state to up`
+          : '',
         newSession,
       };
     }
@@ -1297,15 +1561,17 @@ export function executeCliCommand(
       const mask = tokens[3];
       if (!ip || !mask) return { output: '% Incomplete command. Syntax: ip address <ip> <mask>', newSession };
       if (!isValidIp(ip) || !isValidIp(mask)) return { output: '% Invalid IP address or mask.', newSession };
-      iface.ip = ip;
-      iface.mask = mask;
-      onConfigChange(config);
+      applyToAllTargets((target) => {
+        target.ip = ip;
+        target.mask = mask;
+      });
       return { output: '', newSession };
     }
     if (line.startsWith('no ip address')) {
-      delete iface.ip;
-      delete iface.mask;
-      onConfigChange(config);
+      applyToAllTargets((target) => {
+        delete target.ip;
+        delete target.mask;
+      });
       return { output: '', newSession };
     }
 
@@ -1313,8 +1579,9 @@ export function executeCliCommand(
     if (cmd === 'encapsulation' && tokens[1]?.toLowerCase().startsWith('dot1q')) {
       const vlanId = parseInt(tokens[2], 10);
       if (isNaN(vlanId)) return { output: '% Incomplete command. Syntax: encapsulation dot1Q <vlan-id>', newSession };
-      iface.encapsulationDot1Q = vlanId;
-      onConfigChange(config);
+      applyToAllTargets((target) => {
+        target.encapsulationDot1Q = vlanId;
+      });
       return { output: '', newSession };
     }
 
@@ -1322,8 +1589,9 @@ export function executeCliCommand(
     if (cmd === 'switchport' && tokens[1] === 'mode') {
       const mode = tokens[2];
       if (mode === 'access' || mode === 'trunk') {
-        iface.mode = mode;
-        onConfigChange(config);
+        applyToAllTargets((target) => {
+          target.mode = mode as any;
+        });
         return { output: '', newSession };
       }
       return { output: '% Invalid switchport mode (access or trunk).', newSession };
@@ -1333,7 +1601,9 @@ export function executeCliCommand(
     if (cmd === 'switchport' && tokens[1] === 'access' && tokens[2] === 'vlan') {
       const vid = parseInt(tokens[3], 10);
       if (isNaN(vid)) return { output: '% Incomplete command.', newSession };
-      iface.accessVlan = vid;
+      applyToAllTargets((target) => {
+        target.accessVlan = vid;
+      });
       if (!config.vlans[vid]) {
         config.vlans[vid] = { id: vid, name: `VLAN${vid.toString().padStart(4, '0')}` };
       }
@@ -1345,15 +1615,18 @@ export function executeCliCommand(
     if (cmd === 'switchport' && tokens[1] === 'voice' && tokens[2] === 'vlan') {
       const vvid = parseInt(tokens[3], 10);
       if (!isNaN(vvid)) {
-        iface.voiceVlan = vvid;
+        applyToAllTargets((target) => {
+          target.voiceVlan = vvid;
+        });
         if (!config.vlans[vvid]) {
           config.vlans[vvid] = { id: vvid, name: `Voice_VLAN${vvid}` };
         }
         onConfigChange(config);
         return { output: '', newSession };
       } else if (tokens[3] === 'dot1p' || tokens[3] === 'untagged' || tokens[3] === 'none') {
-        iface.voiceVlan = 0;
-        onConfigChange(config);
+        applyToAllTargets((target) => {
+          target.voiceVlan = 0;
+        });
         return { output: '', newSession };
       }
       return { output: '% Incomplete command. Syntax: switchport voice vlan <1-4094>', newSession };
@@ -2229,7 +2502,7 @@ function handleShowCommands(
   // show mac address-table
   if (sub.startsWith('mac') || sub.startsWith('mac address-table')) {
     let out = '          Mac Address Table\n-------------------------------------------\nVlan    Mac Address       Type        Ports\n----    -----------       --------    -----\n';
-    const table = device.config.macTable || [];
+    const table = getLiveMacTable(device, allDevices, allLinks);
     if (table.length === 0) {
       out += '   1    001c.b123.4567    DYNAMIC     Fa0/1\n';
     } else {
@@ -2237,6 +2510,7 @@ function handleShowCommands(
         out += `${String(entry.vlan).padStart(4)}    ${entry.mac}    ${entry.type.padEnd(8)}    ${entry.port}\n`;
       });
     }
+    out += `Total Mac Addresses for this criterion: ${table.length || 1}`;
     return { output: out.trimEnd(), newSession: session };
   }
 

@@ -287,6 +287,7 @@ export interface DeviceConfig {
   transportInput?: string;
   execTimeout?: string;
   loggingSynchronous?: boolean;
+  loggingBuffer?: string[];
   macTable?: MacTableEntry[];
   arpTable?: ArpTableEntry[];
   // End-host properties (PC, Laptop, Server)
