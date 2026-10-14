@@ -1,5 +1,7 @@
 # WireCraft System Architecture & Design Document
 
+> [📖 Doc Hub](./INDEX.md) • [🏗️ Architecture](./ARCHITECTURE.md) • [💻 CLI Reference](./CLI_REFERENCE.md) • [🔌 REST API](./API.md) • [🧪 Testing](./TESTING.md) • [🚀 Deployment](./DEPLOYMENT.md) • [🔒 Security](./SECURITY.md) • [🗺️ Roadmap](./ROADMAP.md) • [🏷️ Brand Guide](./BRAND_LOC.md) • [🤝 Contributing](./CONTRIBUTING.md)
+
 This document provides a comprehensive technical overview of the **WireCraft** simulation platform, detailing the domain model, protocol simulation pipeline, CLI parsing mechanics, concurrency model, and backend AI integration.
 
 ---

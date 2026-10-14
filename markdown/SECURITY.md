@@ -1,5 +1,7 @@
 # Security Policy & Vulnerability Disclosure
 
+> [📖 Doc Hub](./INDEX.md) • [🏗️ Architecture](./ARCHITECTURE.md) • [💻 CLI Reference](./CLI_REFERENCE.md) • [🔌 REST API](./API.md) • [🧪 Testing](./TESTING.md) • [🚀 Deployment](./DEPLOYMENT.md) • [🔒 Security](./SECURITY.md) • [🗺️ Roadmap](./ROADMAP.md) • [🏷️ Brand Guide](./BRAND_LOC.md) • [🤝 Contributing](./CONTRIBUTING.md)
+
 The WireCraft engineering team takes software security, pedagogical integrity, and operational safety seriously. This document outlines our threat model, security architecture, and responsible vulnerability disclosure process.
 
 ---

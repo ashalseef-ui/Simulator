@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests Passing](https://img.shields.io/badge/tests-58%20passed-success.svg)](https://vitest.dev/)
 
+> [📖 Doc Hub](./INDEX.md) • [🏗️ Architecture](./ARCHITECTURE.md) • [💻 CLI Reference](./CLI_REFERENCE.md) • [🔌 REST API](./API.md) • [🧪 Testing](./TESTING.md) • [🚀 Deployment](./DEPLOYMENT.md) • [🔒 Security](./SECURITY.md) • [🗺️ Roadmap](./ROADMAP.md) • [🏷️ Brand Guide](./BRAND_LOC.md) • [🤝 Contributing](./CONTRIBUTING.md)
+
 **WireCraft** is an industrial-grade, in-browser virtual network architecture simulator and interactive learning platform engineered for CCNA/CCNP network engineers, systems architects, and students. Build complex multi-tier network topologies, configure devices using authentic Cisco IOS command-line syntax, observe real-time hop-by-hop packet animation, troubleshoot live NOC outage tickets, and leverage an embedded Gemini-powered AI TAC Co-Pilot.
 
 ---
@@ -147,19 +149,21 @@ npm run build
 
 ## Documentation Index
 
-Comprehensive engineering documentation is maintained in the [`/markdown`](./markdown/) directory:
+The complete suite of industrial-standard documentation includes:
 
-- [**README.md**](./markdown/README.md) - Primary project specification and overview
-- [**ARCHITECTURE.md**](./markdown/ARCHITECTURE.md) - Deep architectural breakdown of simulation mechanics and state flows
-- [**CONTRIBUTING.md**](./markdown/CONTRIBUTING.md) - Contribution standards, branching conventions, and PR guidelines
-- [**CHANGELOG.md**](./markdown/CHANGELOG.md) - Versioned history of features, bugfixes, and engine improvements
-- [**DEPLOYMENT.md**](./markdown/DEPLOYMENT.md) - Containerization, Cloud Run, Docker, and reverse-proxy guidelines
-- [**SECURITY.md**](./markdown/SECURITY.md) - Vulnerability disclosure policy, prompt injection defense, and security controls
-- [**API.md**](./markdown/API.md) - Complete REST endpoint reference, JSON schemas, and rate-limiting limits
-- [**CLI_REFERENCE.md**](./markdown/CLI_REFERENCE.md) - Exhaustive reference for all 107 Cisco IOS CLI commands and multi-vendor translations
-- [**TESTING.md**](./markdown/TESTING.md) - Test methodologies, property-based tests, and STP/OSPF validation
-- [**ROADMAP.md**](./markdown/ROADMAP.md) - Long-term development goals, feature pipeline, and future releases
-- [**CODE_OF_CONDUCT.md**](./markdown/CODE_OF_CONDUCT.md) - Contributor Covenant v2.1 community standard
+- [**INDEX.md**](./INDEX.md) - Master documentation navigator and architecture index
+- [**PROJECT.md**](./PROJECT.md) - Simulation engine scope, verification metrics, and known limits
+- [**ARCHITECTURE.md**](./ARCHITECTURE.md) - Deep architectural breakdown of simulation mechanics and state flows
+- [**CONTRIBUTING.md**](./CONTRIBUTING.md) - Contribution standards, branching conventions, and PR guidelines
+- [**CHANGELOG.md**](./CHANGELOG.md) - Versioned history of features, bugfixes, and engine improvements
+- [**DEPLOYMENT.md**](./DEPLOYMENT.md) - Containerization, Cloud Run, Docker, and reverse-proxy guidelines
+- [**SECURITY.md**](./SECURITY.md) - Vulnerability disclosure policy, prompt injection defense, and security controls
+- [**API.md**](./API.md) - Complete REST endpoint reference, JSON schemas, and rate-limiting limits
+- [**CLI_REFERENCE.md**](./CLI_REFERENCE.md) - Exhaustive reference for all 107 Cisco IOS CLI commands and multi-vendor translations
+- [**TESTING.md**](./TESTING.md) - Test methodologies, property-based tests, and STP/OSPF validation
+- [**ROADMAP.md**](./ROADMAP.md) - Long-term development goals, feature pipeline, and future releases
+- [**BRAND_LOC.md**](./BRAND_LOC.md) - Brand locations catalog, visual assets, and migration checklist
+- [**CODE_OF_CONDUCT.md**](./CODE_OF_CONDUCT.md) - Contributor Covenant v2.1 community standard
 
 ---
 

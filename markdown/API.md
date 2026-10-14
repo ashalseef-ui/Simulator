@@ -1,5 +1,7 @@
 # WireCraft Backend REST API Reference
 
+> [📖 Doc Hub](./INDEX.md) • [🏗️ Architecture](./ARCHITECTURE.md) • [💻 CLI Reference](./CLI_REFERENCE.md) • [🔌 REST API](./API.md) • [🧪 Testing](./TESTING.md) • [🚀 Deployment](./DEPLOYMENT.md) • [🔒 Security](./SECURITY.md) • [🗺️ Roadmap](./ROADMAP.md) • [🏷️ Brand Guide](./BRAND_LOC.md) • [🤝 Contributing](./CONTRIBUTING.md)
+
 The WireCraft backend service (`server.ts`) provides full-stack AI orchestration, topology diagnostics, schematic diagram synthesis, and server health checks.
 
 ---

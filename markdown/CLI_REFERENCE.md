@@ -1,5 +1,7 @@
 # WireCraft CLI Reference & Multi-Vendor Guide
 
+> [📖 Doc Hub](./INDEX.md) • [🏗️ Architecture](./ARCHITECTURE.md) • [💻 CLI Reference](./CLI_REFERENCE.md) • [🔌 REST API](./API.md) • [🧪 Testing](./TESTING.md) • [🚀 Deployment](./DEPLOYMENT.md) • [🔒 Security](./SECURITY.md) • [🗺️ Roadmap](./ROADMAP.md) • [🏷️ Brand Guide](./BRAND_LOC.md) • [🤝 Contributing](./CONTRIBUTING.md)
+
 WireCraft provides an authentic, high-fidelity command-line interface (CLI) supporting genuine Cisco IOS syntax and multi-vendor command translation.
 
 ---
