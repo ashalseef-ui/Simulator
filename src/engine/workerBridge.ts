@@ -37,7 +37,9 @@ class SimulationWorkerBridge {
           if (pending) {
             this.pendingRequests.delete(res.id);
             if (res.type === 'ERROR') {
-              pending.reject(new Error(res.error));
+              const err = new Error(res.error);
+              if ((res as any).stack) err.stack = (res as any).stack;
+              pending.reject(err);
             } else {
               pending.resolve(res);
             }
@@ -63,13 +65,29 @@ class SimulationWorkerBridge {
     }
   }
 
-  private sendWorkerRequest<T extends WorkerResponse>(req: WorkerRequest): Promise<T> {
+  private sendWorkerRequest<T extends WorkerResponse>(req: WorkerRequest, timeoutMs = 5000): Promise<T> {
     if (!this.worker || !this.isWorkerSupported) {
       return Promise.reject(new Error('Worker not available'));
     }
 
     return new Promise<T>((resolve, reject) => {
-      this.pendingRequests.set(req.id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (this.pendingRequests.has(req.id)) {
+          this.pendingRequests.delete(req.id);
+          reject(new Error(`Worker request timed out after ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      this.pendingRequests.set(req.id, {
+        resolve: (val) => {
+          clearTimeout(timer);
+          resolve(val);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
       this.worker!.postMessage(req);
     });
   }

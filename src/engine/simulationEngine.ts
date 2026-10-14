@@ -107,11 +107,16 @@ export function lookupRoute(
   dstIp: string,
   ospfRoutes: OspfRoute[] = []
 ): RouteMatch | null {
+  // 1. Strict boundary validation
+  if (!dev || !dev.config || !dev.config.interfaces || !dstIp || typeof dstIp !== 'string') {
+    return null;
+  }
+
   const candidates: RouteMatch[] = [];
 
   // 1. Directly connected interfaces and sub-interfaces
   for (const [ifName, iface] of Object.entries(dev.config.interfaces)) {
-    if (iface.ip && iface.mask && iface.status === 'up') {
+    if (iface && iface.ip && iface.mask && iface.status === 'up') {
       if (areSameSubnet(iface.ip, dstIp, iface.mask)) {
         candidates.push({
           type: 'connected',
@@ -125,9 +130,9 @@ export function lookupRoute(
     }
   }
 
-  // 2. Static routes
-  for (const r of dev.config.routes || []) {
-    if (safeCidr(r.mask) === 0 || areSameSubnet(r.network, dstIp, r.mask)) {
+  // 2. Static routes (nullish coalescing fallback)
+  for (const r of dev.config.routes ?? []) {
+    if (r && r.mask && (safeCidr(r.mask) === 0 || areSameSubnet(r.network, dstIp, r.mask))) {
       candidates.push({
         type: safeCidr(r.mask) === 0 ? 'default' : 'static',
         outInterface: r.interface || '',
@@ -139,8 +144,8 @@ export function lookupRoute(
   }
 
   // 3. OSPF routes: produced by the OSPF engine from real adjacencies + SPF
-  for (const r of ospfRoutes) {
-    if (areSameSubnet(r.network, dstIp, r.mask)) {
+  for (const r of ospfRoutes ?? []) {
+    if (r && r.mask && areSameSubnet(r.network, dstIp, r.mask)) {
       candidates.push({
         type: 'ospf',
         outInterface: r.outInterface,
@@ -152,23 +157,24 @@ export function lookupRoute(
     }
   }
 
-  // 4-6. EIGRP / RIP / BGP are still simplified: a matching network statement is treated as reachable.
-  // (See PROJECT.md "Known limitations".)
-  for (const net of dev.config.eigrp?.networks || []) {
-    const care = (~ipToInt(net.wildcard)) >>> 0;
-    if (((ipToInt(dstIp) & care) >>> 0) === ((ipToInt(net.network) & care) >>> 0)) {
-      candidates.push({ type: 'eigrp', outInterface: '', nextHopIp: dstIp, metric: 90, prefixLen: wildcardToPrefixLen(net.wildcard) });
+  // 4-6. EIGRP / RIP / BGP with nullish coalescing and safe property access
+  for (const net of dev.config.eigrp?.networks ?? []) {
+    if (net && net.wildcard && net.network) {
+      const care = (~ipToInt(net.wildcard)) >>> 0;
+      if (((ipToInt(dstIp) & care) >>> 0) === ((ipToInt(net.network) & care) >>> 0)) {
+        candidates.push({ type: 'eigrp', outInterface: '', nextHopIp: dstIp, metric: 90, prefixLen: wildcardToPrefixLen(net.wildcard) });
+      }
     }
   }
-  for (const net of dev.config.rip?.networks || []) {
-    if (areSameSubnet(net, dstIp, '255.255.255.0')) {
+  for (const net of dev.config.rip?.networks ?? []) {
+    if (net && areSameSubnet(net, dstIp, '255.255.255.0')) {
       candidates.push({ type: 'rip', outInterface: '', nextHopIp: dstIp, metric: 120, prefixLen: 24 });
     }
   }
-  for (const net of dev.config.bgp?.networks || []) {
-    if (areSameSubnet(net.network, dstIp, net.mask)) {
-      const neighbor = dev.config.bgp!.neighbors[0];
-      const isInternal = neighbor?.remoteAs === dev.config.bgp!.asn;
+  for (const net of dev.config.bgp?.networks ?? []) {
+    if (net && net.network && net.mask && areSameSubnet(net.network, dstIp, net.mask)) {
+      const neighbor = dev.config.bgp?.neighbors?.[0];
+      const isInternal = neighbor?.remoteAs === dev.config.bgp?.asn;
       candidates.push({
         type: 'bgp',
         outInterface: '',
@@ -209,15 +215,28 @@ export function simulatePing(
   devices: Device[],
   links: Link[]
 ): { steps: SimulationStep[]; success: boolean; error?: string } {
-  const srcDev = devices.find((d) => d.id === srcDeviceId);
-  if (!srcDev) return { steps: [], success: false, error: 'Source device not found.' };
+  // Defensive input validation
+  if (!srcDeviceId || typeof srcDeviceId !== 'string') {
+    return { steps: [], success: false, error: 'Invalid source device ID.' };
+  }
+  if (!dstIp || typeof dstIp !== 'string') {
+    return { steps: [], success: false, error: 'Invalid destination IP address.' };
+  }
+  if (!Array.isArray(devices) || !Array.isArray(links)) {
+    return { steps: [], success: false, error: 'Topology devices and links must be arrays.' };
+  }
+
+  const srcDev = devices.find((d) => d && d.id === srcDeviceId);
+  if (!srcDev || !srcDev.config || !srcDev.config.interfaces) {
+    return { steps: [], success: false, error: 'Source device not found or unconfigured.' };
+  }
 
   // Find source active IP & interface
   let srcIfaceName = '';
   let srcIface: DeviceInterface | undefined;
 
   for (const [name, iface] of Object.entries(srcDev.config.interfaces)) {
-    if (iface.ip && iface.status === 'up') {
+    if (iface && iface.ip && iface.status === 'up') {
       srcIface = iface;
       srcIfaceName = name;
       break;
@@ -236,7 +255,7 @@ export function simulatePing(
     return {
       steps: [],
       success: false,
-      error: `Device ${srcDev.name} has no valid IPv4 address configured on its interfaces.`,
+      error: `Device ${srcDev.name || 'Source'} has no valid IPv4 address configured on its interfaces.`,
     };
   }
 
@@ -244,8 +263,9 @@ export function simulatePing(
   let dstDev: Device | undefined;
 
   for (const d of devices) {
+    if (!d || !d.config || !d.config.interfaces) continue;
     for (const [, iface] of Object.entries(d.config.interfaces)) {
-      if (iface.ip === dstIp && iface.status === 'up') {
+      if (iface && iface.ip === dstIp && iface.status === 'up') {
         dstDev = d;
         break;
       }
@@ -699,18 +719,24 @@ function findL2L3ForwardPath(
   stpTopology: any,
   ospfState: OspfState
 ): ForwardPathResult {
-  if (!dstDev) {
+  if (!srcDev || !srcDev.config || !srcDev.config.interfaces) {
+    return { success: false, hops: [], errorMessage: 'Invalid source device structure.' };
+  }
+  if (!dstDev || !dstDev.config || !dstDev.config.interfaces) {
     return {
       success: false,
       hops: [],
       errorMessage: `Destination IP ${dstIp} is not reachable on any configured network device.`,
     };
   }
+  if (!Array.isArray(devices) || !Array.isArray(links)) {
+    return { success: false, hops: [], errorMessage: 'Topology arrays are invalid.' };
+  }
 
   // Determine starting VLAN tag (based on source interface accessVlan or sub-interface encapsulation)
   const srcIface = srcDev.config.interfaces[srcIfaceName];
   let currentVlan = srcIface?.accessVlan || 1;
-  if (srcIfaceName.includes('.') && srcIface?.encapsulationDot1Q) {
+  if (srcIfaceName && srcIfaceName.includes('.') && srcIface?.encapsulationDot1Q) {
     currentVlan = srcIface.encapsulationDot1Q;
   }
 
@@ -726,17 +752,23 @@ function findL2L3ForwardPath(
   const queue: State[] = [
     {
       currentDevId: srcDev.id,
-      inPort: srcIfaceName,
+      inPort: srcIfaceName || '',
       currentVlan,
       hops: [],
-      visited: new Set([`${srcDev.id}:${srcIfaceName}`]),
+      visited: new Set([`${srcDev.id}:${srcIfaceName || ''}`]),
     },
   ];
 
   const routeDrops = new Set<string>();
   const physicalOf = (n: string) => n.split('.')[0];
+  let iterations = 0;
+  const MAX_ITERATIONS = 2000;
 
   while (queue.length > 0) {
+    iterations++;
+    if (iterations > MAX_ITERATIONS) {
+      return { success: false, hops: [], errorMessage: 'Path search reached maximum limit (potential routing loop detected).' };
+    }
     const current = queue.shift()!;
     const currDev = devices.find((d) => d.id === current.currentDevId);
     if (!currDev) continue;
@@ -870,23 +902,33 @@ export function simulateDhcp(
   devices: Device[],
   _links: Link[]
 ): { steps: SimulationStep[]; allocatedConfig?: { ip: string; mask: string; gateway: string; dns: string }; error?: string } {
-  const client = devices.find((d) => d.id === clientDeviceId);
-  if (!client) return { steps: [], error: 'Client device not found' };
+  if (!clientDeviceId || typeof clientDeviceId !== 'string') {
+    return { steps: [], error: 'Invalid client device ID' };
+  }
+  if (!Array.isArray(devices)) {
+    return { steps: [], error: 'Topology devices array is invalid' };
+  }
+
+  const client = devices.find((d) => d && d.id === clientDeviceId);
+  if (!client || !client.config) return { steps: [], error: 'Client device not found or unconfigured' };
 
   // Locate DHCP Server (either Server device with DHCP enabled, or Router with DHCP pool)
   let dhcpServer: Device | undefined;
   let serverPoolConfig: { ip: string; mask: string; gateway: string; dns: string } | undefined;
 
   for (const d of devices) {
+    if (!d || !d.config) continue;
     if (d.type === 'server' && d.config.services?.dhcp?.enabled) {
       dhcpServer = d;
       const s = d.config.services.dhcp;
-      serverPoolConfig = {
-        ip: s.startIp,
-        mask: s.mask,
-        gateway: s.defaultGateway,
-        dns: s.dnsServer,
-      };
+      if (s) {
+        serverPoolConfig = {
+          ip: s.startIp || '192.168.1.100',
+          mask: s.mask || '255.255.255.0',
+          gateway: s.defaultGateway || '192.168.1.1',
+          dns: s.dnsServer || '8.8.8.8',
+        };
+      }
       break;
     }
     if ((d.type === 'router' || d.type === 'l3switch') && d.config.dhcpPools) {

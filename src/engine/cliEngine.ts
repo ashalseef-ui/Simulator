@@ -12,6 +12,7 @@ import {
   executeLinuxCommand,
   executeMikrotikCommand,
 } from './cli/multiVendorEngines';
+import { deepClone } from '../utils/deepClone';
 
 export const commandTrie = new CommandTrie();
 commandTrie.registerAll(COMMAND_TREE_REGISTRY);
@@ -468,7 +469,7 @@ export function executeCliCommand(
 ): { output: string; newSession: CliSession } {
   const line = rawCommand.trim();
   const newSession: CliSession = { ...session };
-  const config: DeviceConfig = JSON.parse(JSON.stringify(device.config));
+  const config: DeviceConfig = deepClone(device.config);
 
   // Save to history
   if (line.length > 0) {
@@ -1326,10 +1327,18 @@ export function executeCliCommand(
       return { output: '', newSession };
     }
 
-    // crypto key generate rsa
+    // crypto key generate rsa [modulus <bits>]
     if (line.startsWith('crypto key generate rsa')) {
+      const modulusIdx = tokens.indexOf('modulus');
+      let bits = 2048;
+      if (modulusIdx !== -1 && tokens[modulusIdx + 1]) {
+        const parsedBits = parseInt(tokens[modulusIdx + 1], 10);
+        if ([512, 768, 1024, 2048, 4096].includes(parsedBits)) {
+          bits = parsedBits;
+        }
+      }
       return {
-        output: 'The name for the keys will be: ' + (config.hostname || 'Router') + '\n% The key-pair has been generated. Key size: 1024 bits.\n% SSH 1.99 has been enabled',
+        output: 'The name for the keys will be: ' + (config.hostname || 'Router') + `\n% The key-pair has been generated. Key size: ${bits} bits.\n% SSH 2.0 has been enabled`,
         newSession,
       };
     }
@@ -3591,7 +3600,7 @@ function handleShowCommands(
   return { output: `% Incomplete or unsupported show command: "${sub}"`, newSession: session };
 }
 
-export function generateRunningConfig(device: Device): string {
+export function generateRunningConfig(device: Device, showSecrets = false): string {
   const c = device.config;
   let lines: string[] = [
     'Building configuration...',
@@ -3600,14 +3609,15 @@ export function generateRunningConfig(device: Device): string {
     '!',
     'version 15.4',
     'no service timestamps log datetime msec',
-    'no service password-encryption',
+    'service password-encryption',
     '!',
-    `hostname ${c.hostname}`,
+    `hostname ${c.hostname || 'Router'}`,
     '!',
   ];
 
   if (c.enableSecret) {
-    lines.push(`enable secret ${c.enableSecret}`);
+    const secretValue = showSecrets ? c.enableSecret : '5 $1$mERr$hx5rVt7rPNoS4wqbXKX7m0';
+    lines.push(`enable secret ${secretValue}`);
     lines.push('!');
   }
 

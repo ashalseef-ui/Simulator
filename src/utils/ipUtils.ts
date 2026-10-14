@@ -1,4 +1,5 @@
-export function isValidIp(ip: string): boolean {
+export function isValidIp(ip: string | undefined | null): boolean {
+  if (!ip || typeof ip !== 'string') return false;
   const parts = ip.trim().split('.');
   if (parts.length !== 4) return false;
   return parts.every((p) => {
@@ -7,8 +8,9 @@ export function isValidIp(ip: string): boolean {
   });
 }
 
-export function ipToInt(ip: string): number {
-  return ip
+export function ipToInt(ip: string | undefined | null): number {
+  if (!isValidIp(ip)) return 0;
+  return ip!
     .trim()
     .split('.')
     .reduce((acc, octet) => ((acc << 8) + Number(octet)) >>> 0, 0);
@@ -212,4 +214,43 @@ export function calculateVlsmSubnets(
   }
 
   return { allocated, totalAllocatedAddresses };
+}
+
+/**
+ * Safely parses interface ranges like "Fa0/1-24", "Gi0/1 - 4, Fa0/12",
+ * returning an array of valid interface names. Guaranteed to never throw on any input.
+ */
+export function parseInterfaceRange(
+  rangeStr: string | undefined | null,
+  availableInterfaces: Record<string, any> = {}
+): string[] {
+  if (!rangeStr || typeof rangeStr !== 'string') return [];
+
+  const results: string[] = [];
+  const segments = rangeStr.split(',').map((s) => s.trim()).filter(Boolean);
+
+  for (const seg of segments) {
+    const dashMatch = seg.match(/^([a-zA-Z]+[\d\/]*?)(\d+)\s*-\s*(\d+)$/);
+    if (dashMatch) {
+      const prefix = dashMatch[1];
+      const startNum = parseInt(dashMatch[2], 10);
+      const endNum = parseInt(dashMatch[3], 10);
+      if (!isNaN(startNum) && !isNaN(endNum) && startNum <= endNum && endNum - startNum <= 256) {
+        for (let i = startNum; i <= endNum; i++) {
+          results.push(`${prefix}${i}`);
+        }
+        continue;
+      }
+    }
+
+    if (seg.length > 0) {
+      results.push(seg);
+    }
+  }
+
+  if (availableInterfaces && Object.keys(availableInterfaces).length > 0) {
+    return results.filter((name) => availableInterfaces[name] !== undefined);
+  }
+
+  return results;
 }

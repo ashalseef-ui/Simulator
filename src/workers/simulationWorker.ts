@@ -51,19 +51,32 @@ export type WorkerResponse =
       id: string;
       type: 'ERROR';
       error: string;
+      stack?: string;
       computeLatencyMs: number;
     };
 
 // Handle incoming messages on worker thread
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const req = event.data;
-  if (!req || !req.id) return;
-
   const tStart = performance.now();
+
+  // 1. Validate request structure
+  if (!req || typeof req.id !== 'string' || typeof req.type !== 'string') {
+    self.postMessage({
+      id: (req && typeof (req as any).id === 'string') ? (req as any).id : 'UNKNOWN',
+      type: 'ERROR',
+      error: 'Invalid worker request format (missing id or type)',
+      computeLatencyMs: 0,
+    });
+    return;
+  }
 
   try {
     switch (req.type) {
       case 'SOLVE_TOPOLOGY': {
+        if (!Array.isArray(req.devices) || !Array.isArray(req.links)) {
+          throw new Error('SOLVE_TOPOLOGY requires valid devices and links arrays');
+        }
         const stpState = calculatePvst(req.devices, req.links);
         const ospfState = computeOspf(req.devices, req.links, stpState);
         const computeLatencyMs = performance.now() - tStart;
@@ -80,6 +93,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
 
       case 'SIMULATE_PING': {
+        if (!req.srcDevId || !req.dstIp || !Array.isArray(req.devices) || !Array.isArray(req.links)) {
+          throw new Error('SIMULATE_PING requires valid srcDevId, dstIp, devices, and links arrays');
+        }
         const result = simulatePing(req.srcDevId, req.dstIp, req.devices, req.links);
         const computeLatencyMs = performance.now() - tStart;
 
@@ -94,6 +110,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
 
       case 'SIMULATE_DHCP': {
+        if (!req.clientDevId || !Array.isArray(req.devices) || !Array.isArray(req.links)) {
+          throw new Error('SIMULATE_DHCP requires valid clientDevId, devices, and links arrays');
+        }
         const result = simulateDhcp(req.clientDevId, req.devices, req.links);
         const computeLatencyMs = performance.now() - tStart;
 
@@ -109,7 +128,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
       default: {
         const response: WorkerResponse = {
-          id: (req as any).id,
+          id: req.id,
           type: 'ERROR',
           error: `Unknown worker request type: ${(req as any).type}`,
           computeLatencyMs: performance.now() - tStart,
@@ -123,6 +142,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       id: req.id,
       type: 'ERROR',
       error: err?.message || 'Worker computation error',
+      stack: err?.stack,
       computeLatencyMs,
     };
     self.postMessage(response);

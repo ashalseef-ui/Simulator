@@ -2,6 +2,7 @@ import { Device, DeviceConfig, DeviceInterface, Link, NetworkOsType } from '../.
 import { isValidIp, maskToCidr, cidrToMask, getNetworkAddress } from '../../utils/ipUtils';
 import { CliSession } from '../cliEngine';
 import { simulatePing } from '../simulationEngine';
+import { deepClone } from '../../utils/deepClone';
 
 export interface VendorOsMetadata {
   id: NetworkOsType;
@@ -442,7 +443,7 @@ export function executeJunosCommand(
   if (cmd === 'configure' || cmd === 'edit') {
     if (session.mode !== 'config') {
       newSession.mode = 'config';
-      (newSession as any).junosCandidate = JSON.parse(JSON.stringify(config));
+      (newSession as any).junosCandidate = deepClone(config);
       return { output: 'Entering configuration mode\nThe configuration has been borrowed', newSession };
     }
   }
@@ -591,12 +592,12 @@ ${Object.entries(candidate.interfaces || config.interfaces)
       // Apply candidate to live config!
       Object.assign(config, candidate);
       onConfigChange(config);
-      (newSession as any).junosCandidate = JSON.parse(JSON.stringify(config));
+      (newSession as any).junosCandidate = deepClone(config);
       return { output: 'commit complete', newSession };
     }
 
     if (cmd === 'rollback') {
-      (newSession as any).junosCandidate = JSON.parse(JSON.stringify(config));
+      (newSession as any).junosCandidate = deepClone(config);
       return { output: 'load complete', newSession };
     }
 

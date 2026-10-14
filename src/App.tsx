@@ -14,6 +14,7 @@ import { calculateStp, calculatePvst } from './engine/stpEngine';
 import { simulatePing, simulateDhcp } from './engine/simulationEngine';
 import { tileWindows, cascadeWindows } from './utils/windowLayout';
 import { LAB_SCENARIOS } from './data/labs';
+import { deepClone } from './utils/deepClone';
 
 // Components
 import { Canvas } from './components/Canvas';
@@ -55,8 +56,8 @@ export default function App() {
     (newDevices: Device[], newLinks: Link[]) => {
       const next = history.slice(0, historyIndex + 1);
       next.push({
-        devices: JSON.parse(JSON.stringify(newDevices)),
-        links: JSON.parse(JSON.stringify(newLinks)),
+        devices: deepClone(newDevices),
+        links: deepClone(newLinks),
       });
       setHistory(next);
       setHistoryIndex(next.length - 1);
@@ -67,8 +68,8 @@ export default function App() {
   const handleUndo = () => {
     if (historyIndex > 0) {
       const prev = history[historyIndex - 1];
-      setDevices(JSON.parse(JSON.stringify(prev.devices)));
-      setLinks(JSON.parse(JSON.stringify(prev.links)));
+      setDevices(deepClone(prev.devices));
+      setLinks(deepClone(prev.links));
       setHistoryIndex(historyIndex - 1);
     }
   };
@@ -76,8 +77,8 @@ export default function App() {
   const handleRedo = () => {
     if (historyIndex < history.length - 1) {
       const next = history[historyIndex + 1];
-      setDevices(JSON.parse(JSON.stringify(next.devices)));
-      setLinks(JSON.parse(JSON.stringify(next.links)));
+      setDevices(deepClone(next.devices));
+      setLinks(deepClone(next.links));
       setHistoryIndex(historyIndex + 1);
     }
   };
