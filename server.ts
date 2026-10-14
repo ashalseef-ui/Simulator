@@ -370,7 +370,7 @@ Respond in clean, structured JSON format with this exact schema:
       }
 
       const promptContext = `
-You are the NetCraft AI TAC Co-Pilot, an elite Principal Network Architect embedded in an interactive educational network simulator (IOS-compatible syntax).
+You are the WireCraft AI TAC Co-Pilot, an elite Principal Network Architect embedded in an interactive educational network simulator (IOS-compatible syntax).
 Answer the engineer's question clearly, practically, with exact IOS-compatible CLI syntax, packet-level protocol explanations (OSPF, STP, EIGRP, BGP, NAT, ACL, DHCP, VLANs), and step-by-step troubleshooting workflows.
 
 ${deviceContext ? `CURRENT DEVICE CONTEXT:\nHostname: ${deviceContext.hostname}\nType: ${deviceContext.type}\nRunning Config:\n${deviceContext.runningConfig || 'Default'}\n` : ''}
@@ -470,7 +470,7 @@ Respond in clean JSON format:
 
       const promptContext = `
 You are an expert Network Topology Architect.
-The user wants to generate an interactive network topology lab in NetSim from this natural language prompt:
+The user wants to generate an interactive network topology lab in WireCraft from this natural language prompt:
 "${prompt}"
 
 Generate a valid, fully configured network topology conforming to this strict JSON format:

@@ -144,11 +144,11 @@ describe('Hierarchical Command Trie & CLI Engine', () => {
   });
 
   describe('Legal Branding & Show Output Safety', () => {
-    it('outputs NetT-Sim educational banner on reload', () => {
+    it('outputs WireCraft educational banner on reload', () => {
       let session = createCliSession();
       session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
       const reloadRes = executeCliCommand('reload', router, allDevices, session, onConfigChange, allLinks);
-      expect(reloadRes.output).toContain('NetT-Sim');
+      expect(reloadRes.output).toContain('WireCraft');
       expect(reloadRes.output).not.toContain('NetSim IOS');
     });
 
@@ -156,7 +156,7 @@ describe('Hierarchical Command Trie & CLI Engine', () => {
       let session = createCliSession();
       session = executeCliCommand('enable', router, allDevices, session, onConfigChange, allLinks).newSession;
       const verRes = executeCliCommand('show version', router, allDevices, session, onConfigChange, allLinks);
-      expect(verRes.output).toContain('NetT-Sim');
+      expect(verRes.output).toContain('WireCraft');
       expect(verRes.output).toContain('educational simulator');
       expect(verRes.output).toContain('not affiliated with Cisco Systems, Inc.');
     });

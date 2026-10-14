@@ -91,7 +91,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [terminalOutput, setTerminalOutput] = useState<string[]>(() => {
     if (device.type === 'firewall' || device.type === 'firepower') {
       return [
-        `NetT-Sim ASA/Firepower Emulated Security Appliance, Software Version 9.8(2)`,
+        `WireCraft ASA/Firepower Emulated Security Appliance, Software Version 9.8(2)`,
         `Device: Emulated ASA 5506-X Platform`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
@@ -101,7 +101,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'nexus9000') {
       return [
-        `NetT-Sim NX-OS-Compatible Switch Engine, Version 9.3(5)`,
+        `WireCraft NX-OS-Compatible Switch Engine, Version 9.3(5)`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
@@ -110,7 +110,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (device.type === 'wlc') {
       return [
-        `NetT-Sim AireOS-Compatible Controller Emulation, Version 8.5.151.0`,
+        `WireCraft AireOS-Compatible Controller Emulation, Version 8.5.151.0`,
         `Device: Emulated 3504 Wireless LAN Controller`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
@@ -120,7 +120,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
     if (isSwitchDevice) {
       return [
-        `NetT-Sim Catalyst-Compatible Switch Engine, Software Version 17.3(4)`,
+        `WireCraft Catalyst-Compatible Switch Engine, Software Version 17.3(4)`,
         `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
         ``,
         `Press RETURN or type 'enable' to get started!`,
@@ -128,7 +128,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       ];
     }
     return [
-      `NetT-Sim IOS-Compatible Router Engine (Emulated C2900), Software Version 15.4(3)M2`,
+      `WireCraft IOS-Compatible Router Engine (Emulated C2900), Software Version 15.4(3)M2`,
       `% Educational simulation - Not affiliated with Cisco Systems, Inc.`,
       ``,
       `Press RETURN or type 'enable' to get started!`,
@@ -142,9 +142,9 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
 
   // Desktop tool state (for PC/Laptop)
   const [desktopTool, setDesktopTool] = useState<'ip' | 'terminal' | 'browser'>('ip');
-  const [cmdOutput, setCmdOutput] = useState<string[]>(['NetCraft Command Prompt [Version 1.0]', 'Type "ping <ip>", "nslookup <domain>", or "help".', '']);
+  const [cmdOutput, setCmdOutput] = useState<string[]>(['WireCraft Command Prompt [Version 1.0]', 'Type "ping <ip>", "nslookup <domain>", or "help".', '']);
   const [cmdInput, setCmdInput] = useState('');
-  const [browserUrl, setBrowserUrl] = useState('http://netsim.local');
+  const [browserUrl, setBrowserUrl] = useState('http://wirecraft.local');
   const [browserContent, setBrowserContent] = useState<string | null>(null);
 
   // Server DNS Record input state
@@ -643,7 +643,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         }
       }
       if (!recordsFound) {
-        out.push('    Record Name . . . . . : netsim.local');
+        out.push('    Record Name . . . . . : wirecraft.local');
         out.push('    A (IPv4) Record . . . : 192.168.1.10');
       }
     } else if (lower === 'ipconfig /flushdns') {
@@ -657,10 +657,10 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       out.push('\nTrace complete.');
     } else if (lower.startsWith('nslookup')) {
       const parts = cmd.split(/\s+/);
-      const domain = parts[1] || 'netsim.local';
+      const domain = parts[1] || 'wirecraft.local';
       const activeDnsServer = device.config.dnsServer || '192.168.1.10';
 
-      out.push(`Server:  ns1.netcraft.lab`);
+      out.push(`Server:  ns1.wirecraft.lab`);
       out.push(`Address: ${activeDnsServer}\n`);
 
       // Search all servers in network topology
@@ -679,7 +679,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         out.push(`Name:    ${domain}`);
         out.push(`Address: ${resolvedIp}`);
       } else {
-        out.push(`*** ns1.netcraft.lab can't find ${domain}: Non-existent domain`);
+        out.push(`*** ns1.wirecraft.lab can't find ${domain}: Non-existent domain`);
       }
     } else if (lower.startsWith('arp')) {
       if (lower.includes('-d')) {
@@ -702,7 +702,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       const parts = cmd.split(/\s+/);
       const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
       out.push(`Connecting to SSH host at ${target}:22...`);
-      out.push(`SSH banner received: NetT-Sim IOS-Compatible Engine, Version 15.4(3)M2`);
+      out.push(`SSH banner received: WireCraft IOS-Compatible Engine, Version 15.4(3)M2`);
       out.push(`Password: [Enter VTY password in device terminal]`);
     } else if (lower.startsWith('telnet')) {
       const parts = cmd.split(/\s+/);
@@ -711,13 +711,13 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       out.push(`User Access Verification`);
       out.push(`Password: `);
     } else if (lower.startsWith('curl') || lower.startsWith('wget') || lower.startsWith('http')) {
-      out.push('HTTP/1.1 200 OK\nContent-Type: text/html\nServer: NetCraft Linux Web Engine\n\n<html><body><h1>NetCraft Web Portal</h1><p>Connection Successful</p></body></html>');
+      out.push('HTTP/1.1 200 OK\nContent-Type: text/html\nServer: WireCraft Linux Web Engine\n\n<html><body><h1>WireCraft Web Portal</h1><p>Connection Successful</p></body></html>');
     } else if (lower === 'hostname') {
       out.push(device.config.hostname || device.name);
     } else if (lower === 'whoami') {
-      out.push('netcraft-user\\admin');
+      out.push('wirecraft-user\\admin');
     } else if (lower === 'systeminfo') {
-      out.push(`Host Name:                 ${device.config.hostname || device.name}\nOS Name:                   NetCraft Workstation OS v10.0\nSystem Type:               x64-based PC\nNetwork Card(s):           1 NIC(s) Installed.\n                           [01]: FastEthernet0/0 - Status: Connected`);
+      out.push(`Host Name:                 ${device.config.hostname || device.name}\nOS Name:                   WireCraft Workstation OS v10.0\nSystem Type:               x64-based PC\nNetwork Card(s):           1 NIC(s) Installed.\n                           [01]: FastEthernet0/0 - Status: Connected`);
     } else if (lower === 'cls' || lower === 'clear') {
       setCmdOutput([]);
       setCmdInput('');
@@ -772,7 +772,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
           <div class="text-xl font-bold text-sky-400 mb-2">${h.title}</div>
           <p class="text-sm text-slate-300 leading-relaxed">${h.body}</p>
           <div class="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
-            Served by NetT-Sim Enterprise Web Engine (HTTP/1.1 200 OK)
+            Served by WireCraft Enterprise Web Engine (HTTP/1.1 200 OK)
           </div>
         </div>
       `);
@@ -2075,7 +2075,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                       <label className="text-[10px] text-slate-400 block mb-0.5">Domain</label>
                       <input
                         type="text"
-                        placeholder="e.g. netsim.local"
+                        placeholder="e.g. wirecraft.local"
                         value={newDnsDomain}
                         onChange={(e) => setNewDnsDomain(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"

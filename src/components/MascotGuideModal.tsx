@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Lightbulb,
 } from 'lucide-react';
-import mascotImg from '../assets/images/nettsim_mascot_packet_pete_1791635324814.jpg';
+import mascotImg from '../assets/images/wirecraft_mascot_packet_pete.jpg';
 
 interface MascotGuideModalProps {
   isOpen: boolean;
@@ -24,8 +24,8 @@ interface MascotGuideModalProps {
 
 const PETE_TIPS = [
   {
-    title: 'Welcome to NetT-Sim!',
-    text: "Hi there! I'm Packet Pete, your personal networking study buddy. I'll help you master CCNA concepts without needing heavy desktop software.",
+    title: 'Welcome to WireCraft!',
+    text: "Hi there! I'm Packet Pete, your personal networking study buddy. I'll help you master CCNA concepts and design network architectures on WireCraft.",
     actionLabel: 'Explore AI Lab Architect',
     actionKey: 'topology',
   },
@@ -93,8 +93,8 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-extrabold text-white">Packet Pete</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                  NetT-Sim Mascot
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  WireCraft Mascot
                 </span>
               </div>
               <p className="text-xs text-slate-300">Your AI Study & Routing Companion</p>

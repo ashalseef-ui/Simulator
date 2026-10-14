@@ -1,6 +1,6 @@
 {
-  "name": "NetT-Sim - Virtual Network Architecture Simulator",
-  "description": "Universal multi-vendor network architecture simulator with interactive CLI for Cisco IOS, Juniper Junos, Arista EOS, Linux/VyOS, and MikroTik RouterOS, Spanning Tree convergence, real-time packet tracing, guided practice labs, and AI lab architect studio.",
+  "name": "WireCraft - Virtual Network Architecture Simulator",
+  "description": "WireCraft - Universal multi-vendor network architecture simulator with interactive CLI for Cisco IOS, Juniper Junos, Arista EOS, Linux/VyOS, and MikroTik RouterOS, Spanning Tree convergence, real-time packet tracing, guided practice labs, and AI lab architect studio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

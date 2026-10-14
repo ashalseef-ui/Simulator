@@ -1,4 +1,4 @@
-# NetSim: Virtual Network Architecture Simulator (IOS-Syntax Compatible)
+# WireCraft: Virtual Network Architecture Simulator (IOS-Syntax Compatible)
 
 An in-browser educational network simulator for CCNA certification study: build a topology, configure devices through an IOS-style CLI, and watch packets move hop by hop.
 
@@ -48,7 +48,7 @@ npm run lint             # tsc --noEmit
 
 ## Legal & Trademark Disclaimer
 
-NetSim is an independent educational tool created for instructional simulation and CCNA study.
+WireCraft is an independent educational tool created for instructional simulation and CCNA study.
 - It is **not** affiliated with, sponsored by, authorized by, or endorsed by Cisco Systems, Inc.
 - "Cisco", "Cisco IOS", "Catalyst", "CCNA", and "CCIE" are registered trademarks of Cisco Systems, Inc.
 - All product names, logos, and brands are property of their respective owners. Their use is nominative and purely for educational compatibility and technical description.

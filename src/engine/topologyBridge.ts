@@ -42,7 +42,7 @@ export interface RawAiTopologyResponse {
 }
 
 /**
- * Normalizes and converts an AI or offline topology response into clean, fully-formed NetSim objects.
+ * Normalizes and converts an AI or offline topology response into clean, fully-formed WireCraft objects.
  */
 export function buildTopologyFromAiResponse(
   aiResponse: RawAiTopologyResponse,

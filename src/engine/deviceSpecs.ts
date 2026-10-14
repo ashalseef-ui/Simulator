@@ -544,14 +544,14 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
       dns: {
         enabled: true,
         records: [
-          { domain: 'netsim.local', ip: '192.168.1.10' },
+          { domain: 'wirecraft.local', ip: '192.168.1.10' },
           { domain: 'example.com', ip: '192.168.1.10' },
         ],
       },
       http: {
         enabled: true,
-        title: 'NetT-Sim Enterprise Portal',
-        body: 'Welcome to the NetT-Sim Network Simulation Lab Web Server.',
+        title: 'WireCraft Enterprise Portal',
+        body: 'Welcome to the WireCraft Network Simulation Lab Web Server.',
       },
     };
   }

@@ -19,6 +19,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
+import { WireCraftLogo } from './WireCraftLogo';
 
 interface TopBarProps {
   canUndo: boolean;
@@ -93,11 +94,11 @@ export const TopBar: React.FC<TopBarProps> = ({
       />
       <div className="flex items-center gap-3">
         {/* Logo/Title */}
-        <div className="flex items-center gap-2 mr-6 shrink-0">
-          <Network className="w-5 h-5 text-sky-400 shrink-0" />
+        <div className="flex items-center gap-2.5 mr-6 shrink-0">
+          <WireCraftLogo size="sm" />
           <div className="flex flex-col">
-            <h1 className="text-sm font-bold text-white whitespace-nowrap hidden sm:block">NetT-Sim</h1>
-            <span className="text-[8px] font-mono text-emerald-400 font-bold tracking-wider hidden lg:block -mt-0.5">UNIVERSAL SIMULATOR</span>
+            <h1 className="text-sm font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 whitespace-nowrap hidden sm:block tracking-wide font-mono">WireCraft</h1>
+            <span className="text-[8px] font-mono text-cyan-400 font-bold tracking-wider hidden lg:block -mt-0.5">VIRTUAL NETWORK ARCHITECTURE</span>
           </div>
         </div>
 

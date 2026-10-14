@@ -108,7 +108,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
     if (!currentImage) return;
     const a = document.createElement('a');
     a.href = currentImage;
-    a.download = `netcraft-diagram-${Date.now()}.png`;
+    a.download = `wirecraft-diagram-${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

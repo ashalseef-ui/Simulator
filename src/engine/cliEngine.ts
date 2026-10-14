@@ -685,7 +685,7 @@ export function executeCliCommand(
     }
     if (cmd === 'reload') {
       return {
-        output: 'Proceed with reload? [confirm]\nSystem restarted.\nNetT-Sim IOS-Compatible Engine, Version 15.4(3)M2\nReady.',
+        output: 'Proceed with reload? [confirm]\nSystem restarted.\nWireCraft IOS-Compatible Engine, Version 15.4(3)M2\nReady.',
         newSession,
       };
     }
@@ -2894,7 +2894,7 @@ function handleShowCommands(
         out += `Entry address(es): \n  IP address: ${nIface?.ip || '10.0.0.1'}\n`;
         out += `Platform: Emulated ${n.type === 'switch' ? 'WS-C2960-24TT' : '2911-ISR'},  Capabilities: ${n.type === 'switch' ? 'Switch IGMP' : 'Router'}\n`;
         out += `Interface: Gig0/1,  Port ID (outgoing port): FastEthernet0/1\n`;
-        out += `Holdtime : 142 sec\n\nVersion :\nNetSim IOS-Compatible Engine, Version 15.4(3)M2, RELEASE SIMULATION (fc2)\n-------------------------\n`;
+        out += `Holdtime : 142 sec\n\nVersion :\nWireCraft IOS-Compatible Engine, Version 15.4(3)M2, RELEASE SIMULATION (fc2)\n-------------------------\n`;
       });
       return { output: out.trimEnd(), newSession: session };
     }
@@ -3381,7 +3381,7 @@ function handleShowCommands(
         out += `Chassis id: ${Object.values(n.config.interfaces)[0]?.mac || '001c.b100.0001'}\n`;
         out += `Port id: Gi0/1\n`;
         out += `System Name: ${n.config.hostname || n.name}\n`;
-        out += `System Description: NetSim IOS-Compatible Engine, Version 15.4(3)M2\n`;
+        out += `System Description: WireCraft IOS-Compatible Engine, Version 15.4(3)M2\n`;
         out += `Management Addresses: IP: 192.168.1.1\n------------------------------------------------\n`;
       });
       return { output: out.trimEnd(), newSession: session };
@@ -3710,7 +3710,7 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
   if (sub === 'sysinfo') {
-    let out = 'Manufacturer\'s Name.............................. NetT-Sim Systems (Educational Emulation)\n';
+    let out = 'Manufacturer\'s Name.............................. WireCraft Systems (Educational Emulation)\n';
     out += 'Product Name..................................... Emulated 3504 Wireless LAN Controller\n';
     out += 'Product Version.................................. 8.5.151.0 (Simulation)\n';
     out += 'RTOS Version..................................... 8.5.151.0\n';
@@ -3734,7 +3734,7 @@ function handleShowCommands(
   // show tech-support
   if (sub.startsWith('tech') || sub.startsWith('tech-support')) {
     let out = '------------------ show version ------------------\n';
-    out += `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
+    out += `WireCraft IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
     out += `% Notice: Independent educational simulation. Not affiliated with Cisco Systems, Inc.\n`;
     out += `System image file is "flash:c2900-universalk9-mz.SPA.154-3.M2.bin"\n\n`;
     out += '------------------ show running-config ------------------\n';
@@ -3750,9 +3750,9 @@ function handleShowCommands(
 
   // show version
   if (sub === 'version' || sub === 'ver') {
-    let out = `NetT-Sim IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
-    out += `% Notice: NetT-Sim is an educational simulator for CCNA study, not affiliated with Cisco Systems, Inc.\n`;
-    out += `ROM: NetT-Sim System Bootstrap, Version 15.0(1r)M16\n\n`;
+    let out = `WireCraft IOS-Compatible Engine (Emulated C2900), Software Version 15.4(3)M2\n`;
+    out += `% Notice: WireCraft is an educational simulator for CCNA study, not affiliated with Cisco Systems, Inc.\n`;
+    out += `ROM: WireCraft System Bootstrap, Version 15.0(1r)M16\n\n`;
     out += `${device.config.hostname || device.name} uptime is 4 days, 16 hours, 28 minutes\n`;
     out += `System returned to ROM by power-on\n`;
     out += `Emulated 2911 Hardware Platform (revision 1.0) with 514048K/10240K bytes of memory.\n`;

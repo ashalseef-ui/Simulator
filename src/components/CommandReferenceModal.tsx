@@ -1132,7 +1132,7 @@ export const CommandReferenceModal: React.FC<CommandReferenceModalProps> = ({
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <span className="flex items-center gap-2">
-            <span>NetT-Sim Universal Network Operating System Architecture</span>
+            <span>WireCraft Universal Network Operating System Architecture</span>
             <span className="text-slate-600">|</span>
             <span className="text-emerald-400">Cisco · Juniper · Arista · Linux/VyOS · MikroTik</span>
           </span>

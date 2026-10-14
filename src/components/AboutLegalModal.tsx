@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, ShieldCheck, Scale, AlertCircle, BookOpen } from 'lucide-react';
+import { WireCraftLogo } from './WireCraftLogo';
 
 interface AboutLegalModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClos
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
           <div className="flex items-center gap-2.5">
-            <Scale className="w-5 h-5 text-sky-400" />
+            <Scale className="w-5 h-5 text-cyan-400" />
             <h2 className="text-base font-bold text-white">About & Legal Disclaimers</h2>
           </div>
           <button
@@ -29,6 +30,12 @@ export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClos
 
         {/* Content */}
         <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar text-sm text-slate-300">
+          {/* Brand Header Banner */}
+          <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border border-cyan-500/20 shadow-inner">
+            <WireCraftLogo size="lg" showText />
+            <p className="mt-2 text-xs font-mono text-cyan-400/90 tracking-wider">Virtual Network Architecture Simulator</p>
+          </div>
+
           {/* Trademark Notice Card */}
           <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
             <div className="flex items-center gap-2 text-amber-300 font-semibold text-xs tracking-wider uppercase">
@@ -36,10 +43,10 @@ export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClos
               <span>Trademark & Nominative Fair Use Notice</span>
             </div>
             <p className="text-xs text-amber-200/90 leading-relaxed">
-              <strong>NetT-Sim</strong> is an independent educational simulator developed for student learning and networking certification study.
+              <strong>WireCraft</strong> is an independent educational simulator developed for student learning and networking certification study.
             </p>
             <p className="text-xs text-amber-200/90 leading-relaxed">
-              NetT-Sim is <strong>not affiliated with, endorsed by, sponsored by, or associated with Cisco Systems, Inc.</strong>
+              WireCraft is <strong>not affiliated with, endorsed by, sponsored by, or associated with Cisco Systems, Inc., Juniper Networks, Arista Networks, or MikroTik.</strong>
             </p>
             <p className="text-xs text-amber-200/70 leading-relaxed">
               <em>Cisco, Cisco IOS, Catalyst, CCNA, and CCIE</em> are registered trademarks of Cisco Systems, Inc. All other brand names, product numbers, and model designations are used strictly for educational description and command-syntax compatibility.
@@ -49,7 +56,7 @@ export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClos
           {/* Educational Purpose */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-white font-semibold text-xs uppercase tracking-wider">
-              <BookOpen className="w-4 h-4 text-sky-400" />
+              <BookOpen className="w-4 h-4 text-cyan-400" />
               <span>Educational Simulation Engine</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
@@ -71,7 +78,7 @@ export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClos
 
         {/* Footer */}
         <div className="px-6 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
-          <span>NetT-Sim Educational Edition</span>
+          <span>WireCraft Educational Edition</span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors cursor-pointer"

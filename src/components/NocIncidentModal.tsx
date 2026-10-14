@@ -236,7 +236,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white tracking-tight">
-                  NetCraft NOC & AI TAC Architect
+                  WireCraft NOC & AI TAC Architect
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                   REAL-WORLD INCIDENTS
