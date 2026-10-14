@@ -128,9 +128,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
       default: {
         const response: WorkerResponse = {
-          id: req.id,
+          id: (req as any)?.id || 'unknown',
           type: 'ERROR',
-          error: `Unknown worker request type: ${(req as any).type}`,
+          error: `Unknown worker request type: ${(req as any)?.type}`,
           computeLatencyMs: performance.now() - tStart,
         };
         self.postMessage(response);
@@ -139,7 +139,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   } catch (err: any) {
     const computeLatencyMs = performance.now() - tStart;
     const response: WorkerResponse = {
-      id: req.id,
+      id: (req as any)?.id || 'unknown',
       type: 'ERROR',
       error: err?.message || 'Worker computation error',
       stack: err?.stack,
