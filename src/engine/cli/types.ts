@@ -12,7 +12,9 @@ export type CliMode =
   | 'config-router-rip'
   | 'config-dhcp'
   | 'config-vlan'
-  | 'config-line';
+  | 'config-line'
+  | 'config-std-nacl'
+  | 'config-ext-nacl';
 
 export interface CliSession {
   mode: CliMode;

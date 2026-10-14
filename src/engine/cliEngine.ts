@@ -29,7 +29,9 @@ export type CliMode =
   | 'config-router-rip'
   | 'config-dhcp'
   | 'config-vlan'
-  | 'config-line';
+  | 'config-line'
+  | 'config-std-nacl'
+  | 'config-ext-nacl';
 
 export interface CliSession {
   mode: CliMode;
@@ -40,6 +42,7 @@ export interface CliSession {
   currentEigrpAs?: number;
   currentDhcpPool?: string;
   currentVlan?: number;
+  currentAcl?: string;
   history: string[];
   historyIndex: number;
   debugFlags?: {
@@ -90,6 +93,10 @@ export function getPrompt(device: Device, session: CliSession): string {
       return `${host}(config-vlan)#`;
     case 'config-line':
       return `${host}(config-line)#`;
+    case 'config-std-nacl':
+      return `${host}(config-std-nacl)#`;
+    case 'config-ext-nacl':
+      return `${host}(config-ext-nacl)#`;
     default:
       return `${host}>`;
   }
@@ -546,6 +553,17 @@ export function executeCliCommand(
   const cmd = tokens[0].toLowerCase();
 
   // Navigation commands across modes
+  if (cmd === 'logout') {
+    newSession.mode = 'user';
+    newSession.currentInterface = undefined;
+    newSession.currentInterfaceRange = undefined;
+    newSession.currentOspfProcess = undefined;
+    newSession.currentDhcpPool = undefined;
+    newSession.currentVlan = undefined;
+    newSession.currentAcl = undefined;
+    return { output: '\n[Connection to device closed]', newSession };
+  }
+
   if (cmd === 'exit') {
     if (session.mode === 'user') {
       return { output: '\n[Connection to device closed]', newSession };
@@ -565,6 +583,7 @@ export function executeCliCommand(
     newSession.currentOspfProcess = undefined;
     newSession.currentDhcpPool = undefined;
     newSession.currentVlan = undefined;
+    newSession.currentAcl = undefined;
     return { output: '', newSession };
   }
 
@@ -576,6 +595,7 @@ export function executeCliCommand(
       newSession.currentOspfProcess = undefined;
       newSession.currentDhcpPool = undefined;
       newSession.currentVlan = undefined;
+      newSession.currentAcl = undefined;
     }
     return { output: '', newSession };
   }
@@ -590,6 +610,25 @@ export function executeCliCommand(
       const target = tokens[1];
       if (!target) return { output: '% Incomplete command.', newSession };
       return { output: simulateCliPing(target, device, allDevices, allLinks), newSession };
+    }
+    if (cmd === 'traceroute' || cmd === 'trace') {
+      const target = tokens[1];
+      if (!target) return { output: '% Incomplete command.', newSession };
+      return { output: simulateCliPing(target, device, allDevices, allLinks), newSession };
+    }
+    if (cmd === 'telnet') {
+      const target = tokens[1] || '192.168.1.1';
+      return {
+        output: `Trying ${target} ...Open\n\nUser Access Verification\n\nPassword: `,
+        newSession,
+      };
+    }
+    if (cmd === 'ssh') {
+      const target = tokens.find((t) => isValidIp(t)) || '192.168.1.1';
+      return {
+        output: `Open SSH connection to ${target} (port 22)\nPassword: `,
+        newSession,
+      };
     }
     if (cmd === 'show' || cmd === 'sh') {
       return handleShowCommands(tokens.slice(1), device, allDevices, newSession, allLinks);
@@ -647,6 +686,16 @@ export function executeCliCommand(
     if (cmd === 'reload') {
       return {
         output: 'Proceed with reload? [confirm]\nSystem restarted.\nNetT-Sim IOS-Compatible Engine, Version 15.4(3)M2\nReady.',
+        newSession,
+      };
+    }
+    if (cmd === 'dir' || line.startsWith('dir')) {
+      return handleShowCommands(['flash'], device, allDevices, newSession, allLinks);
+    }
+    if (cmd === 'mkdir') {
+      const dirName = tokens[1] || 'new_dir';
+      return {
+        output: `Create directory filename [${dirName}]?\nCreated dir flash:/${dirName}`,
         newSession,
       };
     }
@@ -1175,6 +1224,16 @@ export function executeCliCommand(
       return { output: '', newSession };
     }
 
+    // router rip
+    if (cmd === 'router' && tokens[1] === 'rip') {
+      if (!config.rip) {
+        config.rip = { version: 2, autoSummary: false, networks: [] };
+      }
+      newSession.mode = 'config-router-rip';
+      onConfigChange(config);
+      return { output: '', newSession };
+    }
+
     // ip sla <id> / icmp-echo <ip> / ip sla schedule <id>
     if (cmd === 'ip' && tokens[1] === 'sla') {
       const slaId = parseInt(tokens[2], 10) || 1;
@@ -1387,6 +1446,27 @@ export function executeCliCommand(
       }
     }
 
+    // ip access-list standard|extended <name|num>
+    if (cmd === 'ip' && tokens[1] === 'access-list') {
+      const aclType = tokens[2]?.toLowerCase();
+      const aclId = tokens[3];
+      if (!aclId) {
+        return { output: '% Incomplete command. Syntax: ip access-list <standard|extended> <name|number>', newSession };
+      }
+      if (!config.accessLists) config.accessLists = {};
+      if (!config.accessLists[aclId]) {
+        config.accessLists[aclId] = {
+          idOrName: aclId,
+          type: aclType === 'standard' ? 'standard' : 'extended',
+          rules: [],
+        };
+      }
+      newSession.mode = aclType === 'standard' ? 'config-std-nacl' : 'config-ext-nacl';
+      newSession.currentAcl = aclId;
+      onConfigChange(config);
+      return { output: '', newSession };
+    }
+
     // access-list <id> permit|deny <source>
     if (cmd === 'access-list') {
       const aclId = tokens[1];
@@ -1559,7 +1639,7 @@ export function executeCliCommand(
       return { output: '% Stack MAC timer set to 0 (persistent indefinitely).', newSession };
     }
 
-    if (cmd === 'line' && (tokens[1] === 'vty' || tokens[1] === 'con')) {
+    if (cmd === 'line' && (tokens[1]?.startsWith('vty') || tokens[1]?.startsWith('con') || tokens[1]?.startsWith('aux'))) {
       newSession.mode = 'config-line';
       return { output: '', newSession };
     }
@@ -2465,6 +2545,67 @@ export function executeCliCommand(
     return { output: `% Invalid input detected at '^' marker.`, newSession };
   }
 
+  // ACL CONFIG MODE (config-std-nacl & config-ext-nacl)
+  if (session.mode === 'config-std-nacl' || session.mode === 'config-ext-nacl') {
+    const aclId = session.currentAcl;
+    if (!aclId || !config.accessLists?.[aclId]) {
+      newSession.mode = 'config';
+      return { output: '% ACL not active.', newSession };
+    }
+    const acl = config.accessLists[aclId];
+
+    if (cmd === 'permit' || cmd === 'deny') {
+      const action = cmd as 'permit' | 'deny';
+      const rest = tokens.slice(1);
+      let proto = 'ip';
+      let source = 'any';
+      let destination: string | undefined;
+      let port: number | undefined;
+
+      if (acl.type === 'extended') {
+        proto = rest[0] || 'ip';
+        source = rest[1] || 'any';
+        destination = rest[2] || 'any';
+        const eqIdx = rest.indexOf('eq');
+        if (eqIdx !== -1 && rest[eqIdx + 1]) {
+          const p = rest[eqIdx + 1].toLowerCase();
+          port = parseInt(p, 10) || (p === 'www' || p === 'http' ? 80 : p === 'https' ? 443 : p === 'telnet' ? 23 : p === 'ssh' ? 22 : 80);
+        }
+      } else {
+        source = rest.join(' ') || 'any';
+      }
+
+      const validProtos = ['ip', 'tcp', 'udp', 'icmp'] as const;
+      const normalizedProto: 'ip' | 'tcp' | 'udp' | 'icmp' = validProtos.includes(proto as any) ? (proto as any) : 'ip';
+
+      acl.rules.push({
+        action,
+        protocol: normalizedProto,
+        source,
+        destination,
+        port,
+        matchCount: 0,
+      });
+      onConfigChange(config);
+      return { output: '', newSession };
+    }
+
+    if (cmd === 'remark') {
+      return { output: '', newSession };
+    }
+
+    if (cmd === 'do') {
+      return executeCliCommand(
+        tokens.slice(1).join(' '),
+        device,
+        allDevices,
+        { ...session, mode: 'priv' },
+        onConfigChange
+      );
+    }
+    return { output: `% Invalid input detected at '^' marker.`, newSession };
+  }
+
   return { output: `% Invalid command.`, newSession };
 }
 
@@ -2818,6 +2959,23 @@ function handleShowCommands(
       }
       out += '\n';
     }
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show ip eigrp neighbors
+  if (sub.startsWith('ip eigrp nei') || sub === 'ip eigrp neighbors') {
+    const asNum = device.config.eigrp?.asNumber || 100;
+    let out = `EIGRP-IPv4 Neighbors for AS(${asNum})\n`;
+    out += `H   Address                 Interface              Hold Uptime   SRTT   RTO  Q   Seq\n`;
+    out += `                                                   (sec)         (ms)       Cnt  Num\n`;
+    const eigrpPeers = allDevices.filter((d) => d.id !== device.id && d.config.eigrp?.asNumber === asNum);
+    eigrpPeers.forEach((p, idx) => {
+      const peerIface = Object.values(p.config.interfaces)[0];
+      const localIface = Object.keys(device.config.interfaces)[0] || 'Gi0/0';
+      if (peerIface?.ip) {
+        out += `${idx}   ${peerIface.ip.padEnd(23)} ${localIface.padEnd(22)} 14   00:08:42   12   200  0   ${idx + 1}\n`;
+      }
+    });
     return { output: out.trimEnd(), newSession: session };
   }
 
@@ -3264,6 +3422,15 @@ function handleShowCommands(
     let out = `Clock is synchronized, stratum 2, reference is ${device.config.ntpServer || '192.168.1.100'}\n`;
     out += 'nominal freq is 250.0000 Hz, actual freq is 249.9998 Hz, precision is 2**18\n';
     out += 'reference time is E0A41201.C35B9210 (14:20:01.763 UTC Mon Oct 6 2026)\n';
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show boot / show bootvar
+  if (sub.startsWith('boot') || sub === 'bootvar') {
+    let out = 'BOOT variable = flash:c2900-universalk9-mz.SPA.154-3.M2.bin,1;\n';
+    out += 'CONFIG_FILE variable does not exist\n';
+    out += 'BOOTLDR variable does not exist\n';
+    out += 'Configuration register is 0x2102\n';
     return { output: out.trimEnd(), newSession: session };
   }
 
