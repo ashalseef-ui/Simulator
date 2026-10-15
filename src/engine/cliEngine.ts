@@ -2979,6 +2979,212 @@ function handleShowCommands(
     return { output: out.trimEnd(), newSession: session };
   }
 
+  // show ip eigrp topology
+  if (sub.startsWith('ip eigrp top') || sub === 'ip eigrp topology') {
+    const asNum = device.config.eigrp?.asNumber || 100;
+    const rId = device.config.eigrp?.routerId || Object.values(device.config.interfaces)[0]?.ip || '10.0.0.1';
+    let out = `IP-EIGRP Topology Table for AS(${asNum})/ID(${rId})\n`;
+    out += `Codes: P - Passive, A - Active, U - Update, Q - Query, R - Reply, r - reply Status, s - sia Status\n\n`;
+    for (const [name, iface] of Object.entries(device.config.interfaces)) {
+      if (iface.ip && iface.mask && iface.status === 'up') {
+        out += `P ${getNetworkAddress(iface.ip, iface.mask)}/${maskToCidr(iface.mask)}, 1 successors, FD is 281600\n`;
+        out += `        via Connected, ${name}\n`;
+      }
+    }
+    for (const net of device.config.eigrp?.networks || []) {
+      out += `P ${net.network}/24, 1 successors, FD is 307200\n`;
+      out += `        via 10.0.0.2 (307200/28160), GigabitEthernet0/1\n`;
+    }
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show bgp l2vpn evpn
+  if (sub.includes('evpn') || sub.startsWith('bgp l2vpn evpn')) {
+    const asn = device.config.bgp?.asn || 65001;
+    const rid = device.config.bgp?.routerId || Object.values(device.config.interfaces)[0]?.ip || '10.255.255.1';
+    let out = `BGP table version is 8, local router ID is ${rid}\n`;
+    out += `Status codes: s suppressed, d damped, h history, * valid, > best, i - internal\n`;
+    out += `Origin codes: i - IGP, e - EGP, ? - incomplete\n`;
+    out += `EVPN Route Types: [2] MAC/IP Advertisement, [3] Inclusive Multicast Ethernet Tag\n\n`;
+    out += `   Route Distinguisher: ${asn}:10010 (default-vni 10010)\n`;
+    out += `*> [2]:[0]:[48]:[0050.56aa.0001]:[32]:[192.168.10.15]/216\n`;
+    out += `                    10.255.255.2             100      0 65002 i\n`;
+    out += `*> [3]:[0]:[32]:[10.255.255.2]/80\n`;
+    out += `                    10.255.255.2             100      0 65002 i\n`;
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show mpls interfaces / show mpls ldp neighbor / show mpls forwarding-table
+  if (sub.startsWith('mpls')) {
+    if (sub.includes('int')) {
+      let out = 'Interface              IP            Tunnel   Operational\n';
+      for (const [name, iface] of Object.entries(device.config.interfaces)) {
+        if (iface.mplsEnabled || device.config.mpls?.enabled) {
+          out += `${name.padEnd(22)} Yes (LDP)     No       Yes\n`;
+        }
+      }
+      if (!out.includes('Yes')) out += '(no MPLS enabled interfaces configured)';
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('neighbor') || sub.includes('ldp nei')) {
+      let out = `    Peer LDP Ident: 10.255.0.2:0; Local LDP Ident ${device.config.mpls?.routerId || '10.255.0.1'}:0\n`;
+      out += `        TCP connection: 10.0.0.2.646 - 10.0.0.1.34112\n`;
+      out += `        State: Oper; Msgs sent/rcvd: 48/48; Downstream-on-demand\n`;
+      out += `        Up time: 01:24:18\n`;
+      out += `        LDP Discovery Sources:\n`;
+      out += `          GigabitEthernet0/0, Src IP addr: 10.0.0.2\n`;
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('forward') || sub.includes('forw') || sub.includes('lfib')) {
+      let out = 'Local  Outgoing    Prefix            Bytes Label   Outgoing   Next Hop\n';
+      out += 'Tag    Tag or VC   or Tunnel Id      Switched      interface\n';
+      out += '-----------------------------------------------------------------------\n';
+      if (device.config.mpls?.lfib && device.config.mpls.lfib.length > 0) {
+        for (const entry of device.config.mpls.lfib) {
+          out += `${String(entry.inLabel).padEnd(6)} ${String(entry.outLabel).padEnd(11)} ${entry.prefix.padEnd(17)} 12400         ${entry.outInterface.padEnd(10)} ${entry.nextHop}\n`;
+        }
+      } else {
+        out += '1000   Pop Tag     192.168.10.0/24   12400         Gi0/0      10.0.0.2\n';
+        out += '1001   1004        192.168.20.0/24   85200         Gi0/1      10.0.1.2\n';
+      }
+      return { output: out.trimEnd(), newSession: session };
+    }
+  }
+
+  // show crypto isakmp sa / show crypto ipsec sa / show crypto session
+  if (sub.startsWith('crypto')) {
+    if (sub.includes('isakmp')) {
+      let out = 'IPv4 Crypto ISAKMP SA\n';
+      out += 'dst             src             state          conn-id status\n';
+      out += '198.51.100.2    198.51.100.1    QM_IDLE           1001 ACTIVE\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('ipsec') || sub.includes('session')) {
+      let out = 'Crypto session current status\n';
+      out += 'Interface: GigabitEthernet0/0\n';
+      out += 'Session status: UP-ACTIVE\n';
+      out += 'Peer: 198.51.100.2 port 500\n';
+      out += '  IKEv1 SA: local 198.51.100.1/500 remote 198.51.100.2/500 Active\n';
+      out += '  IPSEC FLOW: permit ip 192.168.10.0/255.255.255.0 192.168.20.0/255.255.255.0\n';
+      out += '    Active SAs: 2, origin: crypto map (SPI Inbound: 0x3bf7a01c, Outbound: 0x7c91e02f)\n';
+      out += '    Encrypted: 48 packets, Decrypted: 48 packets, Digest errors: 0\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+  }
+
+  // show vxlan / show nve interface / show nve peers
+  if (sub.startsWith('vxlan') || sub.startsWith('nve') || sub.startsWith('show vxlan')) {
+    const srcIf = device.config.vxlan?.sourceInterface || 'Loopback0';
+    const vtepIp = device.config.interfaces?.[srcIf]?.ip || '10.255.255.1';
+    let out = `Interface: nve1, State: Admin-Up, Oper-Up\n`;
+    out += `  Encapsulation: VXLAN (UDP port 4789)\n`;
+    out += `  BGP EVPN control plane: Enabled\n`;
+    out += `  Source Interface: ${srcIf} (VTEP IP: ${vtepIp})\n\n`;
+    out += `VNI        VLAN  Multicast-Group  State\n`;
+    out += `---------------------------------------\n`;
+    for (const [vniStr, info] of Object.entries(device.config.vxlan?.vniMembers || { 10010: { vni: 10010, vlan: 10 } })) {
+      out += `${String(vniStr).padEnd(10)} ${String(info.vlan).padEnd(5)} Unicast (BGP)    Up\n`;
+    }
+    out += `\nRemote VTEPs:\n`;
+    out += `Peer VTEP IP    VNI     State\n`;
+    out += `-----------------------------\n`;
+    for (const p of device.config.vxlan?.vtepPeers || [{ ip: '10.255.255.2', vni: 10010, state: 'Up' }]) {
+      out += `${p.ip.padEnd(15)} ${String(p.vni).padEnd(7)} ${p.state}\n`;
+    }
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show segment-routing srv6 locator / sid
+  if (sub.includes('srv6') || sub.startsWith('segment-routing')) {
+    let out = 'SRv6 Locators:\n';
+    out += 'Name          Prefix                    Length  Status\n';
+    out += '----------------------------------------------------------\n';
+    const loc = device.config.srv6?.locator || { name: 'MAIN-LOC', prefix: '2001:db8:c001::', length: 48 };
+    out += `${loc.name.padEnd(13)} ${loc.prefix.padEnd(25)} ${String(loc.length).padEnd(7)} Operational\n\n`;
+    out += 'SRv6 Active SIDs:\n';
+    out += 'SID                                     Behavior    Context\n';
+    out += '------------------------------------------------------------------------\n';
+    out += '2001:db8:c001:1::                       End         Local Transit\n';
+    out += '2001:db8:c001:2::                       End.X       GigabitEthernet0/1\n';
+    out += '2001:db8:c001:100::                     End.DT4     VRF default IPv4 table\n';
+    return { output: out.trimEnd(), newSession: session };
+  }
+
+  // show isis neighbors / show isis database / show ip route isis
+  if (sub.startsWith('isis')) {
+    if (sub.includes('nei')) {
+      let out = 'IS-IS Neighbor Table\n';
+      out += 'System Id       Type Interface   IP Address      State Holdtime Circuit Id\n';
+      out += '---------------------------------------------------------------------------\n';
+      if (device.config.isis?.neighbors && device.config.isis.neighbors.length > 0) {
+        for (const n of device.config.isis.neighbors) {
+          out += `${n.systemId.padEnd(15)} ${n.level.padEnd(4)} ${(n.localInterface || n.interface || 'Gi0/1').padEnd(11)} 10.1.1.2        ${n.state.padEnd(5)} ${String(n.holdtime).padEnd(8)} 01\n`;
+        }
+      } else {
+        out += 'R2-CORE         L2   Gi0/1       10.1.1.2        Up    27       01\n';
+        out += 'R3-AGG          L1   Gi0/2       10.1.2.2        Up    28       02\n';
+      }
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('database') || sub.includes('db')) {
+      let out = 'IS-IS Level-1 Link State Database:\n';
+      out += 'LSPID                 LSP Seq Num  LSP Checksum  LSP Holdtime  ATT/P/OL\n';
+      out += 'R1.00-00            * 0x00000004   0x7A2B        1198          0/0/0\n';
+      out += 'R2.00-00              0x00000003   0x8B3C        1195          0/0/0\n\n';
+      out += 'IS-IS Level-2 Link State Database:\n';
+      out += 'LSPID                 LSP Seq Num  LSP Checksum  LSP Holdtime  ATT/P/OL\n';
+      out += 'R1.00-00            * 0x00000005   0x1F4A        1199          0/0/0\n';
+      out += 'R2.00-00              0x00000004   0x9C1D        1196          0/0/0\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+  }
+
+  // show wlan summary / show ap summary / show client summary
+  if (sub.startsWith('wlan') || sub.startsWith('ap') || sub.startsWith('client')) {
+    if (sub.includes('wlan')) {
+      let out = 'Number of WLANs: 2\n';
+      out += 'WLAN ID  WLAN Profile Name              SSID                             Status\n';
+      out += '-------  ------------------------------ -------------------------------- --------\n';
+      out += '1        Corp-Secure                    Enterprise-Secure-WiFi           Enabled\n';
+      out += '2        IoT-Campus                     Campus-IoT-Telemetry             Enabled\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('ap')) {
+      let out = 'AP Name             Slots  AP Model             Ethernet MAC      Status\n';
+      out += '------------------  -----  -------------------  ----------------  -----------\n';
+      out += 'AP-3702-Bldg1-Fl1   2      AIR-AP3702I-A-K9     0050.7966.6800    Registered (RUN)\n';
+      out += 'AP-3702-Bldg1-Fl2   2      AIR-AP3702I-A-K9     0050.7966.6820    Registered (RUN)\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+
+    if (sub.includes('client')) {
+      let out = 'Client Summary:\n';
+      out += 'MAC Address       AP Name               WLAN  Protocol   RSSI    State\n';
+      out += '----------------  --------------------  ----  ---------  ------  -----------\n';
+      out += '0050.7966.6801    AP-3702-Bldg1-Fl1     1     802.11ax   -54dBm  Associated\n';
+      out += '0050.7966.6802    AP-3702-Bldg1-Fl1     2     802.11ac   -62dBm  Associated\n';
+      return { output: out.trimEnd(), newSession: session };
+    }
+  }
+
+  // show iot telemetry / show iot devices
+  if (sub.startsWith('iot') || sub.includes('telemetry')) {
+    let out = 'IoT Subsystem Status: Online\n';
+    out += 'MQTT Broker: 192.168.1.50 (Port 1883)\n';
+    out += 'Active Sensor Endpoints: 3\n\n';
+    out += 'Device Name         Type            Status      Last Telemetry Value\n';
+    out += '------------------  --------------  ----------  ---------------------------------------------\n';
+    out += 'IoT-Sensor-Lab1     Environmental   Publishing  Temp: 23.4°C, Humidity: 46%, Motion: False\n';
+    out += 'IoT-Sensor-HVAC     Thermostat      Publishing  Temp: 21.8°C, Humidity: 50%, Alert: Normal\n';
+    out += 'IoT-Smart-Gateway   Edge Gateway    Online      Broker Active, 48 messages/min, 0 packet loss\n';
+    return { output: out.trimEnd(), newSession: session };
+  }
+
   // show access-lists
   if (sub.startsWith('access-list') || sub.startsWith('ip access-list')) {
     if (!device.config.accessLists || Object.keys(device.config.accessLists).length === 0) {
@@ -3902,7 +4108,8 @@ export function generateRunningConfig(device: Device, showSecrets = false): stri
 
 function generateRoutingTableOutput(device: Device, ospfRoutes: OspfRoute[] = []): string {
   let out = 'Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP\n';
-  out += '       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area\n\n';
+  out += '       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area\n';
+  out += '       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2\n\n';
 
   const defaultRoute = (device.config.routes || []).find((r) => r.network === '0.0.0.0' && (r.mask === '0.0.0.0' || r.mask === '0'));
   out += defaultRoute
@@ -3924,6 +4131,23 @@ function generateRoutingTableOutput(device: Device, ospfRoutes: OspfRoute[] = []
   }
 
   for (const r of ospfRoutes) out += formatOspfRoute(r) + '\n';
+
+  if (device.config.eigrp?.networks) {
+    for (const net of device.config.eigrp.networks) {
+      out += `D        ${net.network}/24 [90/307200] via 10.0.0.2, 00:04:12, GigabitEthernet0/0\n`;
+    }
+  }
+
+  if (device.config.bgp?.networks) {
+    for (const b of device.config.bgp.networks) {
+      const cidr = maskToCidr(b.mask);
+      out += `B        ${b.network}/${cidr} [20/0] via 192.168.100.1, 00:15:32\n`;
+    }
+  }
+
+  if (device.config.isis?.net) {
+    out += `i L2     172.16.1.0/24 [115/20] via 10.1.1.2, 00:03:18, GigabitEthernet0/1\n`;
+  }
 
   return out.trimEnd();
 }

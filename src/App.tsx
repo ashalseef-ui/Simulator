@@ -375,6 +375,8 @@ export default function App() {
       server: 'Server',
       ipphone: 'IPPhone',
       printer: 'Printer',
+      iot_sensor: 'IoT-Sensor-',
+      iot_gateway: 'IoT-GW-',
     };
     const prefix = prefixMap[type] || 'Dev';
     const name = `${prefix}${count}`;

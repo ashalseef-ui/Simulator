@@ -1,6 +1,15 @@
 import { calculateStp, calculatePvst } from '../engine/stpEngine';
 import { computeOspf } from '../engine/ospfEngine';
 import { simulatePing, simulateDhcp } from '../engine/simulationEngine';
+import { computeEigrpNetworkState } from '../engine/protocols/eigrpEngine';
+import { computeBgpNetworkState } from '../engine/protocols/bgpEngine';
+import { computeHsrpNetworkState } from '../engine/protocols/hsrpEngine';
+import { computeMplsNetworkState } from '../engine/protocols/mplsEngine';
+import { computeIpsecSessions } from '../engine/protocols/ipsecEngine';
+import { computeVxlanState } from '../engine/protocols/vxlanEngine';
+import { computeSrv6State } from '../engine/protocols/srv6Engine';
+import { computeIsisNetworkState } from '../engine/protocols/isisEngine';
+import { computeWirelessIotNetworkState } from '../engine/protocols/wirelessIotEngine';
 import { Device, Link } from '../types/network';
 
 export type WorkerRequest =
@@ -33,6 +42,15 @@ export type WorkerResponse =
       type: 'SOLVE_TOPOLOGY_RESULT';
       stpState: any;
       ospfState: any;
+      eigrpState?: any;
+      bgpState?: any;
+      isisState?: any;
+      hsrpState?: any;
+      mplsState?: any;
+      ipsecState?: any;
+      vxlanState?: any;
+      srv6State?: any;
+      wirelessIotState?: any;
       computeLatencyMs: number;
     }
   | {
@@ -79,6 +97,15 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         }
         const stpState = calculatePvst(req.devices, req.links);
         const ospfState = computeOspf(req.devices, req.links, stpState);
+        const eigrpState = computeEigrpNetworkState(req.devices, req.links);
+        const bgpState = computeBgpNetworkState(req.devices, req.links);
+        const isisState = computeIsisNetworkState(req.devices, req.links);
+        const hsrpState = computeHsrpNetworkState(req.devices, req.links);
+        const mplsState = computeMplsNetworkState(req.devices, req.links);
+        const ipsecState = computeIpsecSessions(req.devices);
+        const vxlanState = computeVxlanState(req.devices);
+        const srv6State = computeSrv6State(req.devices);
+        const wirelessIotState = computeWirelessIotNetworkState(req.devices, req.links);
         const computeLatencyMs = performance.now() - tStart;
 
         const response: WorkerResponse = {
@@ -86,6 +113,15 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           type: 'SOLVE_TOPOLOGY_RESULT',
           stpState,
           ospfState,
+          eigrpState,
+          bgpState,
+          isisState,
+          hsrpState,
+          mplsState,
+          ipsecState,
+          vxlanState,
+          srv6State,
+          wirelessIotState,
           computeLatencyMs,
         };
         self.postMessage(response);

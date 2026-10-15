@@ -33,7 +33,9 @@ export type DeviceType =
   | 'home_router'
   | 'cloud'
   | 'mpls_cloud'
-  | 'modem';
+  | 'modem'
+  | 'iot_sensor'
+  | 'iot_gateway';
 
 export type CableType =
   | 'auto'
@@ -115,6 +117,10 @@ export interface DeviceInterface {
   servicePolicyInput?: string;
   servicePolicyOutput?: string;
   lldpMedEnabled?: boolean;
+  mplsEnabled?: boolean;
+  ipsecCryptoMap?: string;
+  isisMetric?: number;
+  isisCircuitType?: 'level-1' | 'level-2' | 'level-1-2';
 }
 
 export interface AccessListRule {
@@ -184,8 +190,22 @@ export interface BgpNeighbor {
   ip: string;
   remoteAs: number;
   description?: string;
-  state?: 'Established' | 'Active' | 'Idle' | 'Connect';
+  state?: 'Established' | 'Active' | 'Idle' | 'Connect' | 'OpenSent' | 'OpenConfirm';
   updateSource?: string;
+  localPref?: number;
+  med?: number;
+  weight?: number;
+  evpnEnabled?: boolean;
+}
+
+export interface BgpEvpnRoute {
+  type: 'type-2' | 'type-3' | 'type-5';
+  rd: string;
+  rt: string;
+  vni?: number;
+  mac?: string;
+  ip?: string;
+  nextHop: string;
 }
 
 export interface BgpConfig {
@@ -196,6 +216,11 @@ export interface BgpConfig {
     network: string;
     mask: string;
   }[];
+  addressFamilies?: {
+    l2vpnEvpn?: boolean;
+    ipv4Unicast?: boolean;
+  };
+  evpnRoutes?: BgpEvpnRoute[];
 }
 
 export interface DhcpPool {
@@ -242,9 +267,19 @@ export interface EigrpConfig {
   asNumber: number;
   routerId?: string;
   autoSummary?: boolean;
+  kValues?: [number, number, number, number, number];
   networks: {
     network: string;
     wildcard: string;
+  }[];
+  passiveInterfaces?: string[];
+  neighbors?: {
+    ip: string;
+    interface: string;
+    uptime: number;
+    srtt: number;
+    rto: number;
+    holdTime: number;
   }[];
 }
 
@@ -252,6 +287,75 @@ export interface RipConfig {
   version: number;
   autoSummary?: boolean;
   networks: string[];
+}
+
+export interface MplsLfibEntry {
+  inLabel: number;
+  outLabel: number | 'Pop' | 'Untagged';
+  prefix: string;
+  nextHop: string;
+  outInterface: string;
+}
+
+export interface MplsConfig {
+  enabled: boolean;
+  routerId?: string;
+  labelRange?: { min: number; max: number };
+  ldpNeighbors?: { routerId: string; state: 'Operational' | 'Non-operational'; transportIp: string }[];
+  lfib?: MplsLfibEntry[];
+}
+
+export interface IpsecConfig {
+  isakmpPolicies?: { priority: number; encryption: string; hash: string; group: number; auth: string; lifetime: number }[];
+  preSharedKeys?: Record<string, string>; // peer IP -> key
+  transformSets?: Record<string, { name: string; espCipher: string; espAuth: string }>;
+  cryptoMaps?: Record<string, { name: string; seq: number; acl: string; peer: string; transformSet: string }>;
+  activeSessions?: { peerIp: string; state: 'UP-ACTIVE' | 'DOWN'; localIp: string; cryptoMap: string; packetsEncrypted: number; packetsDecrypted: number }[];
+}
+
+export interface VxlanConfig {
+  nveInterface?: string;
+  sourceInterface?: string;
+  vniMembers?: Record<number, { vni: number; vlan: number; multicastGroup?: string; ingressReplication?: boolean }>;
+  vtepPeers?: { ip: string; vni: number; state: 'Up' | 'Down' }[];
+}
+
+export interface Srv6Config {
+  enabled: boolean;
+  locator?: { name: string; prefix: string; length: number };
+  sids?: { sid: string; behavior: 'End' | 'End.X' | 'End.DT4'; outInterface?: string; nextHop?: string }[];
+}
+
+export interface IsisConfig {
+  processTag?: string;
+  net?: string; // e.g. "49.0001.0000.0000.0001.00"
+  isType: 'level-1' | 'level-2' | 'level-1-2';
+  metricStyle?: 'narrow' | 'wide';
+  neighbors?: {
+    systemId: string;
+    interface: string;
+    localInterface?: string;
+    level: 'L1' | 'L2' | 'L1L2';
+    state: 'Up' | 'Init' | 'Down';
+    snpa: string;
+    holdtime?: number;
+  }[];
+  lspDatabase?: { lspId: string; seqNumber: string; checksum: string; lifetime: number }[];
+}
+
+export interface WirelessConfig {
+  wlanProfiles?: { id: number; ssid: string; status: 'enabled' | 'disabled'; security: 'open' | 'wpa2-psk' | 'wpa3'; vlanId: number }[];
+  associatedClients?: { mac: string; ip: string; ssid: string; rssi: number; apName: string }[];
+  connectedAps?: { name: string; ip: string; mac: string; model: string; status: 'Registered' | 'Downloading' }[];
+}
+
+export interface IotConfig {
+  role: 'sensor' | 'actuator' | 'gateway';
+  sensorType?: 'temperature' | 'humidity' | 'motion' | 'smart_light' | 'camera' | 'smart_lock';
+  mqttBroker?: string;
+  mqttPort?: number;
+  telemetry?: { temperature?: number; humidity?: number; motionDetected?: boolean; lightState?: 'ON' | 'OFF'; alert?: string };
+  topics?: string[];
 }
 
 export interface DeviceConfig {
@@ -264,6 +368,13 @@ export interface DeviceConfig {
   bgp?: BgpConfig;
   eigrp?: EigrpConfig;
   rip?: RipConfig;
+  mpls?: MplsConfig;
+  ipsec?: IpsecConfig;
+  vxlan?: VxlanConfig;
+  srv6?: Srv6Config;
+  isis?: IsisConfig;
+  wireless?: WirelessConfig;
+  iot?: IotConfig;
   dhcpPools?: Record<string, DhcpPool>;
   dhcpExcludedAddresses?: string[];
   accessLists?: Record<string, AccessList>;
@@ -373,8 +484,9 @@ export interface PacketL2Frame {
   preamble: string;
   srcMac: string;
   dstMac: string;
-  type: string; // e.g. "0x0800 (IPv4)", "0x0806 (ARP)"
+  type: string; // e.g. "0x0800 (IPv4)", "0x0806 (ARP)", "0x8847 (MPLS)"
   vlan?: number;
+  mplsLabels?: number[];
 }
 
 export interface PacketL3Header {
@@ -383,9 +495,12 @@ export interface PacketL3Header {
   tos: number;
   totalLength: number;
   ttl: number;
-  protocol: string; // "ICMP", "UDP", "OSPF"
+  protocol: string; // "ICMP", "UDP", "OSPF", "EIGRP", "ESP", "BGP", "IS-IS"
   srcIp: string;
   dstIp: string;
+  espSpi?: string;
+  vxlanVni?: number;
+  srv6SidList?: string[];
 }
 
 export interface PacketL4Payload {
@@ -398,7 +513,23 @@ export interface SimulationStep {
   id: string;
   stepIndex: number;
   totalSteps: number;
-  type: 'ARP' | 'ICMP' | 'DHCP' | 'OSPF' | 'DNS';
+  type:
+    | 'ARP'
+    | 'ICMP'
+    | 'DHCP'
+    | 'OSPF'
+    | 'DNS'
+    | 'EIGRP'
+    | 'BGP'
+    | 'HSRP'
+    | 'IPSEC'
+    | 'MPLS'
+    | 'EVPN'
+    | 'SRV6'
+    | 'ISIS'
+    | 'VXLAN'
+    | 'WIRELESS'
+    | 'MQTT';
   stage: string;
   fromDeviceId: string;
   toDeviceId: string;

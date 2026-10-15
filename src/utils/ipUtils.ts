@@ -46,6 +46,11 @@ export function maskToCidr(mask: string): number {
   return count;
 }
 
+export function safeCidr(mask: string | undefined | null): number {
+  if (!mask || mask === '0' || mask === '0.0.0.0') return 0;
+  return maskToCidr(mask);
+}
+
 export function maskToWildcard(mask: string): string {
   if (!isValidIp(mask)) return '0.0.0.255';
   const maskInt = ipToInt(mask);

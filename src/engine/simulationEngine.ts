@@ -5,12 +5,21 @@ import {
   DeviceInterface,
   AccessList,
 } from '../types/network';
-import { areSameSubnet, getNetworkAddress, ipToInt, maskToCidr } from '../utils/ipUtils';
+import { areSameSubnet, getNetworkAddress, ipToInt, maskToCidr, safeCidr } from '../utils/ipUtils';
 import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
 import { computeOspf, isOspfCapable, OspfRoute, OspfState, OSPF_AD } from './ospfEngine';
+import { computeEigrpNetworkState, EigrpComputedRoute } from './protocols/eigrpEngine';
+import { computeBgpNetworkState } from './protocols/bgpEngine';
+import { resolveHsrpGateway, computeHsrpNetworkState } from './protocols/hsrpEngine';
+import { computeMplsNetworkState } from './protocols/mplsEngine';
+import { matchIpsecCryptoMap, computeIpsecSessions } from './protocols/ipsecEngine';
+import { matchVxlanOverlay, computeVxlanState } from './protocols/vxlanEngine';
+import { computeSrv6State } from './protocols/srv6Engine';
+import { computeIsisNetworkState, IsisRoute } from './protocols/isisEngine';
+import { computeWirelessIotNetworkState } from './protocols/wirelessIotEngine';
 
 interface RouteMatch {
-  type: 'connected' | 'static' | 'ospf' | 'eigrp' | 'rip' | 'bgp' | 'default';
+  type: 'connected' | 'static' | 'ospf' | 'eigrp' | 'rip' | 'bgp' | 'isis' | 'default';
   outInterface: string;
   subInterface?: string;
   nextHopIp: string;
@@ -28,7 +37,6 @@ const wildcardToPrefixLen = (wildcard: string): number => {
   for (let i = 31; i >= 0 && (mask >>> i) & 1; i--) n++;
   return n;
 };
-const safeCidr = (mask: string): number => (mask === '0' || mask === '0.0.0.0' ? 0 : maskToCidr(mask));
 
 // Helper to evaluate ACL against an ICMP/IP packet
 function checkAcl(
@@ -105,7 +113,9 @@ function checkAcl(
 export function lookupRoute(
   dev: Device,
   dstIp: string,
-  ospfRoutes: OspfRoute[] = []
+  ospfRoutes: OspfRoute[] = [],
+  isisRoutes: IsisRoute[] = [],
+  eigrpRoutes: EigrpComputedRoute[] = []
 ): RouteMatch | null {
   // 1. Strict boundary validation
   if (!dev || !dev.config || !dev.config.interfaces || !dstIp || typeof dstIp !== 'string') {
@@ -143,7 +153,7 @@ export function lookupRoute(
     }
   }
 
-  // 3. OSPF routes: produced by the OSPF engine from real adjacencies + SPF
+  // 3. OSPF routes: produced by the OSPF engine from real adjacencies + SPF (AD 110)
   for (const r of ospfRoutes ?? []) {
     if (r && r.mask && areSameSubnet(r.network, dstIp, r.mask)) {
       candidates.push({
@@ -157,7 +167,35 @@ export function lookupRoute(
     }
   }
 
-  // 4-6. EIGRP / RIP / BGP with nullish coalescing and safe property access
+  // 4. IS-IS routes (AD 115)
+  for (const r of isisRoutes ?? []) {
+    if (r && r.mask && areSameSubnet(r.prefix, dstIp, r.mask)) {
+      candidates.push({
+        type: 'isis',
+        outInterface: r.outInterface,
+        nextHopIp: r.nextHop,
+        metric: 115,
+        prefixLen: safeCidr(r.mask),
+        cost: r.metric,
+      });
+    }
+  }
+
+  // 5. EIGRP computed routes from DUAL state machine (AD 90 for internal, 170 for external)
+  for (const r of eigrpRoutes ?? []) {
+    if (r && r.mask && areSameSubnet(r.prefix, dstIp, r.mask)) {
+      candidates.push({
+        type: 'eigrp',
+        outInterface: r.outInterface,
+        nextHopIp: r.nextHop,
+        metric: r.isExternal ? 170 : 90,
+        prefixLen: safeCidr(r.mask),
+        cost: r.metric,
+      });
+    }
+  }
+
+  // 6. EIGRP network statements fallback
   for (const net of dev.config.eigrp?.networks ?? []) {
     if (net && net.wildcard && net.network) {
       const care = (~ipToInt(net.wildcard)) >>> 0;
@@ -273,15 +311,26 @@ export function simulatePing(
     if (dstDev) break;
   }
 
+  // HSRP Virtual IP check for destination
+  if (!dstDev) {
+    const hsrpDest = resolveHsrpGateway(dstIp, devices);
+    if (hsrpDest) {
+      dstDev = hsrpDest.activeDevice;
+    }
+  }
+
   const steps: SimulationStep[] = [];
   const srcIp = srcIface.ip;
   const srcMask = srcIface.mask;
   const srcMac = srcIface.mac;
   const isLocalSubnet = areSameSubnet(srcIp, dstIp, srcMask);
 
-  // STP state calculation for active topology (Per-VLAN PVST+)
+  // STP & Dynamic Routing Protocol State Calculations (OSPF, IS-IS, EIGRP, MPLS)
   const stpTopology = calculatePvst(devices, links);
   const ospfState = computeOspf(devices, links, stpTopology);
+  const isisState = computeIsisNetworkState(devices, links);
+  const eigrpState = computeEigrpNetworkState(devices, links);
+  const mplsState = computeMplsNetworkState(devices, links);
 
   // Check Layer 3 Gateway on Source Host if destination is non-local
   let nextHopIp = dstIp;
@@ -306,6 +355,12 @@ export function simulatePing(
       return { steps, success: false, error: `No Default Gateway configured on ${srcDev.name} for non-local destination ${dstIp}.` };
     }
 
+    // Check HSRP Virtual Gateway resolution
+    const hsrpGw = resolveHsrpGateway(srcDev.config.defaultGateway, devices);
+    const resolvedGwIp = hsrpGw
+      ? (hsrpGw.activeDevice.config.interfaces[hsrpGw.interfaceName]?.ip || srcDev.config.defaultGateway)
+      : srcDev.config.defaultGateway;
+
     if (!areSameSubnet(srcIp, srcDev.config.defaultGateway, srcMask)) {
       steps.push({
         id: `step_err_${Date.now()}_0`,
@@ -326,10 +381,10 @@ export function simulatePing(
       return { steps, success: false, error: `Configured Default Gateway ${srcDev.config.defaultGateway} is not in the same subnet.` };
     }
 
-    nextHopIp = srcDev.config.defaultGateway;
+    nextHopIp = resolvedGwIp;
   }
 
-  // Find physical forwarding path with VLAN & L2/L3 awareness
+  // Find physical forwarding path with VLAN & Multi-Protocol L2/L3 awareness
   const forwardPath = findL2L3ForwardPath(
     srcDev,
     srcIfaceName,
@@ -339,7 +394,10 @@ export function simulatePing(
     devices,
     links,
     stpTopology,
-    ospfState
+    ospfState,
+    isisState,
+    eigrpState,
+    mplsState
   );
 
   if (!forwardPath.success || forwardPath.hops.length === 0) {
@@ -372,7 +430,7 @@ export function simulatePing(
     });
   });
   for (const r of replyRouters.values()) {
-    if (!lookupRoute(r, srcIp, ospfState.routes[r.id] || [])) {
+    if (!lookupRoute(r, srcIp, ospfState.routes[r.id] || [], isisState.routes[r.id] || [], eigrpState.routes[r.id] || [])) {
       const msg = `Echo Reply cannot return: ${r.name} has no route back to ${srcIp}.`;
       steps.push({
         id: `step_err_${Date.now()}_ret`,
@@ -584,27 +642,61 @@ export function simulatePing(
       ttl = Math.max(1, ttl - 1);
     }
 
+    let stepType: SimulationStep['type'] = 'ICMP';
+    let stage = `ICMP Echo Request (${hop.fromDev.name} -> ${hop.toDev.name})`;
+    let msg = hop.vlanTag
+      ? `Forwarding 802.1Q tagged (VLAN ${hop.vlanTag}) frame to ${hop.toDev.name} [TTL=${ttl}]`
+      : `Forwarding ICMP Echo Request to ${hop.toDev.name} [TTL=${ttl}]`;
+    let l2Type = '0x0800 (IPv4)';
+    let l3Proto = 'ICMP';
+    let mplsLabels: number[] | undefined;
+    let espSpi: string | undefined;
+    let vxlanVni: number | undefined;
+
+    if (hop.mplsAction) {
+      stepType = 'MPLS';
+      stage = hop.mplsAction === 'push'
+        ? `MPLS Label Push (Out-Label: ${hop.mplsLabel})`
+        : hop.mplsAction === 'swap'
+        ? `MPLS Label Swap (${hop.mplsLabel})`
+        : 'MPLS Penultimate Hop Popping (PHP)';
+      msg = `MPLS WAN: ${hop.mplsAction.toUpperCase()} label ${hop.mplsLabel ?? ''} to next LSR ${hop.toDev.name}`;
+      l2Type = '0x8847 (MPLS)';
+      mplsLabels = hop.mplsLabel ? [hop.mplsLabel] : undefined;
+    } else if (hop.isIpsecEncapsulated) {
+      stepType = 'IPSEC';
+      stage = `IPsec VPN Encapsulation (ESP)`;
+      msg = `IPsec VPN: Encapsulating IP payload in ESP tunnel (SPI: ${hop.ipsecSpi || '0x3bf7a01c'}) towards ${hop.toDev.name}`;
+      l3Proto = 'ESP';
+      espSpi = hop.ipsecSpi || '0x3bf7a01c';
+    } else if (hop.isVxlan) {
+      stepType = 'VXLAN';
+      stage = `VXLAN Overlay Encapsulation (VNI ${hop.vxlanVni})`;
+      msg = `VXLAN Overlay: Encapsulated Layer 2 frame into VNI ${hop.vxlanVni} UDP 4789 towards VTEP ${hop.toDev.name}`;
+      l3Proto = 'UDP';
+      vxlanVni = hop.vxlanVni;
+    }
+
     steps.push({
       id: `icmp_fwd_${Date.now()}_${stepCounter}`,
       stepIndex: stepCounter++,
       totalSteps: totalHopsCount,
-      type: 'ICMP',
-      stage: `ICMP Echo Request (${hop.fromDev.name} -> ${hop.toDev.name})`,
+      type: stepType,
+      stage,
       fromDeviceId: hop.fromDev.id,
       toDeviceId: hop.toDev.id,
       fromPort: hop.fromPort,
       toPort: hop.toPort,
       linkId: hop.linkId,
       status: isLastHop ? 'forward' : 'forward',
-      message: hop.vlanTag
-        ? `Forwarding 802.1Q tagged (VLAN ${hop.vlanTag}) frame to ${hop.toDev.name} [TTL=${ttl}]`
-        : `Forwarding ICMP Echo Request to ${hop.toDev.name} [TTL=${ttl}]`,
+      message: msg,
       l2Frame: {
         preamble: '10101011',
         srcMac: hop.srcMac,
         dstMac: hop.dstMac,
-        type: '0x0800 (IPv4)',
+        type: l2Type,
         vlan: hop.vlanTag,
+        mplsLabels,
       },
       l3Packet: {
         version: 4,
@@ -612,14 +704,16 @@ export function simulatePing(
         tos: 0,
         totalLength: 84,
         ttl,
-        protocol: 'ICMP',
+        protocol: l3Proto,
         srcIp: currentSrcIp,
         dstIp: currentDstIp,
+        espSpi,
+        vxlanVni,
       },
       l4Payload: {
-        protocol: 'ICMP',
-        summary: 'Echo Request (Type 8, Code 0)',
-        details: { type: 8, code: 0, sequence: 1, identifier: 0x1a2b, vlan: hop.vlanTag },
+        protocol: l3Proto,
+        summary: `Echo Request (Type 8, Code 0)${mplsLabels ? ` [MPLS: ${mplsLabels.join(', ')}]` : ''}`,
+        details: { type: 8, code: 0, sequence: 1, identifier: 0x1a2b, vlan: hop.vlanTag, mplsLabels, espSpi, vxlanVni },
       },
     });
   }
@@ -634,6 +728,12 @@ export function simulatePing(
     srcMac: h.dstMac,
     dstMac: h.srcMac,
     vlanTag: h.vlanTag,
+    mplsLabel: h.mplsLabel,
+    mplsAction: h.mplsAction,
+    isIpsecEncapsulated: h.isIpsecEncapsulated,
+    ipsecSpi: h.ipsecSpi,
+    isVxlan: h.isVxlan,
+    vxlanVni: h.vxlanVni,
   }));
 
   let replyTtl = 64;
@@ -645,27 +745,54 @@ export function simulatePing(
       replyTtl = Math.max(1, replyTtl - 1);
     }
 
+    let repStepType: SimulationStep['type'] = 'ICMP';
+    let repStage = `ICMP Echo Reply (${hop.fromDev.name} -> ${hop.toDev.name})`;
+    let repMsg = isFinal
+      ? `ICMP Echo Reply successfully received by ${srcDev.name}! Round-trip 0.84ms.`
+      : `Forwarding ICMP Echo Reply towards ${hop.toDev.name}`;
+    let repL2Type = '0x0800 (IPv4)';
+    let repL3Proto = 'ICMP';
+    let repMplsLabels: number[] | undefined;
+    let repEspSpi: string | undefined;
+    let repVxlanVni: number | undefined;
+
+    if (hop.mplsAction) {
+      repStepType = 'MPLS';
+      repStage = 'MPLS Return Label Switching';
+      repL2Type = '0x8847 (MPLS)';
+      repMplsLabels = hop.mplsLabel ? [hop.mplsLabel] : undefined;
+    } else if (hop.isIpsecEncapsulated) {
+      repStepType = 'IPSEC';
+      repStage = 'IPsec VPN Encapsulation (ESP)';
+      repL3Proto = 'ESP';
+      repEspSpi = hop.ipsecSpi || '0x3bf7a01c';
+    } else if (hop.isVxlan) {
+      repStepType = 'VXLAN';
+      repStage = 'VXLAN Return Overlay';
+      repL3Proto = 'UDP';
+      repVxlanVni = hop.vxlanVni;
+    }
+
     steps.push({
       id: `icmp_rep_${Date.now()}_${stepCounter}`,
       stepIndex: stepCounter++,
       totalSteps: totalHopsCount,
-      type: 'ICMP',
-      stage: `ICMP Echo Reply (${hop.fromDev.name} -> ${hop.toDev.name})`,
+      type: repStepType,
+      stage: repStage,
       fromDeviceId: hop.fromDev.id,
       toDeviceId: hop.toDev.id,
       fromPort: hop.fromPort,
       toPort: hop.toPort,
       linkId: hop.linkId,
       status: isFinal ? 'success' : 'reply',
-      message: isFinal
-        ? `ICMP Echo Reply successfully received by ${srcDev.name}! Round-trip 0.84ms.`
-        : `Forwarding ICMP Echo Reply towards ${hop.toDev.name}`,
+      message: repMsg,
       l2Frame: {
         preamble: '10101011',
         srcMac: hop.srcMac,
         dstMac: hop.dstMac,
-        type: '0x0800 (IPv4)',
+        type: repL2Type,
         vlan: hop.vlanTag,
+        mplsLabels: repMplsLabels,
       },
       l3Packet: {
         version: 4,
@@ -673,14 +800,16 @@ export function simulatePing(
         tos: 0,
         totalLength: 84,
         ttl: replyTtl,
-        protocol: 'ICMP',
+        protocol: repL3Proto,
         srcIp: dstIp,
         dstIp: srcIp,
+        espSpi: repEspSpi,
+        vxlanVni: repVxlanVni,
       },
       l4Payload: {
-        protocol: 'ICMP',
+        protocol: repL3Proto,
         summary: 'Echo Reply (Type 0, Code 0)',
-        details: { type: 0, code: 0, sequence: 1, identifier: 0x1a2b, rtt: '0.84 ms' },
+        details: { type: 0, code: 0, sequence: 1, identifier: 0x1a2b, rtt: '0.84 ms', mplsLabels: repMplsLabels, espSpi: repEspSpi, vxlanVni: repVxlanVni },
       },
     });
   }
@@ -699,6 +828,12 @@ interface SimulatedHop {
   srcMac: string;
   dstMac: string;
   vlanTag?: number;
+  mplsLabel?: number;
+  mplsAction?: 'push' | 'swap' | 'pop';
+  isIpsecEncapsulated?: boolean;
+  ipsecSpi?: string;
+  isVxlan?: boolean;
+  vxlanVni?: number;
 }
 
 interface ForwardPathResult {
@@ -717,7 +852,10 @@ function findL2L3ForwardPath(
   devices: Device[],
   links: Link[],
   stpTopology: any,
-  ospfState: OspfState
+  ospfState: OspfState,
+  isisState?: any,
+  eigrpState?: any,
+  mplsState?: any
 ): ForwardPathResult {
   if (!srcDev || !srcDev.config || !srcDev.config.interfaces) {
     return { success: false, hops: [], errorMessage: 'Invalid source device structure.' };
@@ -784,7 +922,7 @@ function findL2L3ForwardPath(
     );
 
     for (const link of attachedLinks) {
-      const isFrom = link.fromDevice === currDev.id;
+      const isFrom: boolean = link.fromDevice === currDev.id;
       const egressPortName = isFrom ? link.fromPort : link.toPort;
       const ingressPortName = isFrom ? link.toPort : link.fromPort;
       const nextDevId = isFrom ? link.toDevice : link.fromDevice;
@@ -837,7 +975,13 @@ function findL2L3ForwardPath(
 
       // 4. L3 forwarding decision: a router/L3 switch only forwards if its routing table says so
       if (isRoutedForwarder(currDev) && currDev.id !== dstDev.id) {
-        const route = lookupRoute(currDev, dstIp, ospfState.routes[currDev.id] || []);
+        const route = lookupRoute(
+          currDev,
+          dstIp,
+          ospfState.routes[currDev.id] || [],
+          isisState?.routes?.[currDev.id] || [],
+          eigrpState?.routes?.[currDev.id] || []
+        );
         if (!route) {
           routeDrops.add(`No route to ${dstIp} on ${currDev.name} (routing table has no matching prefix and no default route).`);
           continue;
@@ -857,6 +1001,28 @@ function findL2L3ForwardPath(
           }
         }
       }
+
+      // Check protocol encapsulations: MPLS, IPsec, VXLAN
+      let hopMplsLabel: number | undefined;
+      let hopMplsAction: 'push' | 'swap' | 'pop' | undefined;
+      const isMplsHop = currDev.config.interfaces[egressPortName]?.mplsEnabled || currDev.config.mpls?.enabled;
+      if (isMplsHop) {
+        const lfib = mplsState?.lfib?.[currDev.id] || [];
+        const isIngressPe = mplsState?.ingressPeRouters?.includes(currDev.id);
+        const isCore = mplsState?.coreRouters?.includes(currDev.id);
+        if (isIngressPe) {
+          hopMplsAction = 'push';
+          hopMplsLabel = lfib[0]?.inLabel || 1002;
+        } else if (isCore) {
+          hopMplsAction = 'swap';
+          hopMplsLabel = lfib[0]?.inLabel ? lfib[0].inLabel + 2 : 1004;
+        } else {
+          hopMplsAction = 'pop';
+        }
+      }
+
+      const cryptoRes = matchIpsecCryptoMap(currDev, srcDev.config.interfaces[srcIfaceName]?.ip || '', dstIp);
+      const vxlanRes = matchVxlanOverlay(currDev, outVlan);
 
       const hopSrcMac = egressIface?.mac || '00:11:22:33:44:55';
       const hopDstMac = ingressIface?.mac || '00:aa:bb:cc:dd:ee';
@@ -879,6 +1045,12 @@ function findL2L3ForwardPath(
             srcMac: hopSrcMac,
             dstMac: hopDstMac,
             vlanTag: frameTagged,
+            mplsLabel: hopMplsLabel,
+            mplsAction: hopMplsAction,
+            isIpsecEncapsulated: cryptoRes.isEncapsulated,
+            ipsecSpi: cryptoRes.spi,
+            isVxlan: vxlanRes.isVxlan,
+            vxlanVni: vxlanRes.vni,
           },
         ],
         visited: nextVisited,

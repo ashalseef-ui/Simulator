@@ -36,9 +36,11 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
+  Network,
 } from 'lucide-react';
 import { DeviceFrontPanel } from './DeviceFrontPanel';
 import { StackingView } from './StackingView';
+import { ProtocolsDashboard } from './ProtocolsDashboard';
 import { CommandReferenceModal } from './CommandReferenceModal';
 import { isValidIp } from '../utils/ipUtils';
 
@@ -73,7 +75,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     device.type === 'l3switch' ||
     device.type === 'nexus9000';
 
-  const [activeTab, setActiveTab] = useState<'physical' | 'cli' | 'config' | 'desktop' | 'services' | 'stacking'>(
+  const [activeTab, setActiveTab] = useState<'physical' | 'cli' | 'config' | 'desktop' | 'services' | 'stacking' | 'protocols'>(
     (windowState.activeTab as any) || (spec.supportsCli ? 'cli' : spec.supportsDesktop ? 'desktop' : 'physical')
   );
   const [selectedPhysicalPort, setSelectedPhysicalPort] = useState<string | null>(null);
@@ -930,6 +932,18 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
               StackWise
             </button>
           )}
+
+          <button
+            onClick={() => setActiveTab('protocols')}
+            className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+              activeTab === 'protocols'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Network className="w-3.5 h-3.5" />
+            Protocols
+          </button>
         </div>
 
         {/* Window Control Buttons */}
@@ -2180,6 +2194,16 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         {activeTab === 'stacking' && (
           <StackingView
             device={device}
+            onUpdateDeviceConfig={onUpdateDeviceConfig}
+          />
+        )}
+
+        {/* TAB 6: ENTERPRISE & SP ADVANCED PROTOCOLS */}
+        {activeTab === 'protocols' && (
+          <ProtocolsDashboard
+            device={device}
+            allDevices={allDevices}
+            allLinks={allLinks}
             onUpdateDeviceConfig={onUpdateDeviceConfig}
           />
         )}

@@ -483,6 +483,34 @@ export const DEVICE_SPECS: Record<DeviceType, DeviceSpec> = {
     supportsServices: false,
     tags: ['Network Device', 'Print Server', 'Static IP'],
   },
+  iot_sensor: {
+    type: 'iot_sensor',
+    displayName: 'IoT Environmental Sensor',
+    category: 'End Devices',
+    description: 'Smart IoT sensor with temperature, humidity, and motion telemetry streaming via MQTT/CoAP.',
+    defaultPorts: [{ name: 'Eth0', speed: 100 }],
+    icon: 'Radio',
+    supportsCli: false,
+    supportsDesktop: true,
+    supportsServices: false,
+    tags: ['IoT Sensor', 'MQTT Telemetry', 'Smart Campus'],
+  },
+  iot_gateway: {
+    type: 'iot_gateway',
+    displayName: 'Edge IoT Gateway',
+    category: 'Wireless & Infrastructure',
+    description: 'Industrial Edge Computing Gateway running local MQTT Broker and northbound WAN bridging.',
+    defaultPorts: [
+      { name: 'Eth0', speed: 1000 },
+      { name: 'Eth1', speed: 1000 },
+      { name: 'Gi0/1', speed: 1000 },
+    ],
+    icon: 'Cpu',
+    supportsCli: true,
+    supportsDesktop: true,
+    supportsServices: true,
+    tags: ['IoT Gateway', 'MQTT Broker', 'Edge Computing'],
+  },
 };
 
 export function createDefaultDeviceConfig(type: DeviceType, hostname: string): DeviceConfig {
@@ -525,10 +553,31 @@ export function createDefaultDeviceConfig(type: DeviceType, hostname: string): D
     arpTable: [],
   };
 
-  if (type === 'pc' || type === 'laptop' || type === 'printer' || type === 'ipphone') {
+  if (type === 'pc' || type === 'laptop' || type === 'printer' || type === 'ipphone' || type === 'iot_sensor') {
     baseConfig.isDhcpClient = false;
     baseConfig.defaultGateway = '';
     baseConfig.dnsServer = '';
+  }
+
+  if (type === 'iot_sensor') {
+    baseConfig.iot = {
+      role: 'sensor',
+      sensorType: 'temperature',
+      mqttBroker: '192.168.1.50',
+      mqttPort: 1883,
+      telemetry: { temperature: 23.5, humidity: 48, motionDetected: false, alert: 'Normal' },
+      topics: ['campus/bldg1/lab/temp', 'campus/bldg1/lab/humidity'],
+    };
+  }
+
+  if (type === 'iot_gateway') {
+    baseConfig.iot = {
+      role: 'gateway',
+      mqttBroker: '127.0.0.1',
+      mqttPort: 1883,
+      telemetry: { temperature: 38.0, alert: 'Gateway Online' },
+      topics: ['campus/+/+/temp', 'campus/+/+/motion', 'campus/+/+/control'],
+    };
   }
 
   if (type === 'server') {
