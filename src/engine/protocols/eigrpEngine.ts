@@ -1,5 +1,5 @@
 import { Device, DeviceInterface, Link } from '../../types/network';
-import { areSameSubnet, ipToInt, maskToCidr, safeCidr } from '../../utils/ipUtils';
+import { areSameSubnet, ipToInt } from '../../utils/ipUtils';
 
 export interface EigrpNeighborState {
   neighborId: string;
@@ -146,7 +146,7 @@ export function computeEigrpNetworkState(devices: Device[], links: Link[]): {
       if (!remoteDev) continue;
 
       // Remote device advertises its connected interfaces in EIGRP
-      for (const [remIfName, remIf] of Object.entries(remoteDev.config.interfaces || {})) {
+      for (const [, remIf] of Object.entries(remoteDev.config.interfaces || {})) {
         if (!remIf.ip || !remIf.mask || remIf.status !== 'up') continue;
         if (!isInterfaceInEigrp(remIf, remoteDev.config.eigrp?.networks ?? [])) continue;
 
@@ -166,7 +166,6 @@ export function computeEigrpNetworkState(devices: Device[], links: Link[]): {
         const totalMetric = reportedDistance + hopMetric;
 
         // Check if prefix already exists in topology table
-        const cidr = safeCidr(remIf.mask);
         const existing = topologyTables[dev.id].find((t) => t.prefix === remIf.ip && t.mask === remIf.mask);
 
         if (!existing) {

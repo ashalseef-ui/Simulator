@@ -1,5 +1,5 @@
-import { Device, DeviceInterface, Link, MplsConfig, MplsLfibEntry } from '../../types/network';
-import { areSameSubnet, ipToInt } from '../../utils/ipUtils';
+import { Device, Link, MplsLfibEntry } from '../../types/network';
+import { areSameSubnet } from '../../utils/ipUtils';
 
 export interface MplsSession {
   localRouterId: string;
@@ -104,7 +104,7 @@ export function computeMplsNetworkState(devices: Device[], links: Link[]): MplsC
       const neighborDev = mplsDevices.find((d) => d.config.mpls?.routerId === session.peerRouterId);
       if (!neighborDev) continue;
 
-      for (const [remIfName, remIf] of Object.entries(neighborDev.config.interfaces || {})) {
+      for (const [, remIf] of Object.entries(neighborDev.config.interfaces || {})) {
         if (!remIf.ip || !remIf.mask || remIf.status !== 'up') continue;
 
         const inLabel = baseLabel++;

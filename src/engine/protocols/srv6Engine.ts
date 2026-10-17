@@ -1,4 +1,4 @@
-import { Device, DeviceInterface, Link, Srv6Config } from '../../types/network';
+import { Device } from '../../types/network';
 
 export interface Srv6LocatorEntry {
   name: string;

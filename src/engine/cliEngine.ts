@@ -1,6 +1,6 @@
 import { Device, DeviceConfig, DeviceInterface, Link } from '../types/network';
 import { isValidIp, maskToCidr, getNetworkAddress } from '../utils/ipUtils';
-import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
+import { calculateStp, calculatePvst } from './stpEngine';
 import { computeOspf, formatNeighborTable, formatOspfRoute, OspfRoute } from './ospfEngine';
 import { simulatePing } from './simulationEngine';
 import { CommandTrie } from './cli/commandTrie';

@@ -5,18 +5,15 @@ import {
   DeviceInterface,
   AccessList,
 } from '../types/network';
-import { areSameSubnet, getNetworkAddress, ipToInt, maskToCidr, safeCidr } from '../utils/ipUtils';
-import { calculateStp, calculatePvst, getStpPortState } from './stpEngine';
+import { areSameSubnet, getNetworkAddress, ipToInt, safeCidr } from '../utils/ipUtils';
+import { calculatePvst, getStpPortState } from './stpEngine';
 import { computeOspf, isOspfCapable, OspfRoute, OspfState, OSPF_AD } from './ospfEngine';
 import { computeEigrpNetworkState, EigrpComputedRoute } from './protocols/eigrpEngine';
-import { computeBgpNetworkState } from './protocols/bgpEngine';
-import { resolveHsrpGateway, computeHsrpNetworkState } from './protocols/hsrpEngine';
+import { resolveHsrpGateway } from './protocols/hsrpEngine';
 import { computeMplsNetworkState } from './protocols/mplsEngine';
-import { matchIpsecCryptoMap, computeIpsecSessions } from './protocols/ipsecEngine';
-import { matchVxlanOverlay, computeVxlanState } from './protocols/vxlanEngine';
-import { computeSrv6State } from './protocols/srv6Engine';
+import { matchIpsecCryptoMap } from './protocols/ipsecEngine';
+import { matchVxlanOverlay } from './protocols/vxlanEngine';
 import { computeIsisNetworkState, IsisRoute } from './protocols/isisEngine';
-import { computeWirelessIotNetworkState } from './protocols/wirelessIotEngine';
 
 interface RouteMatch {
   type: 'connected' | 'static' | 'ospf' | 'eigrp' | 'rip' | 'bgp' | 'isis' | 'default';

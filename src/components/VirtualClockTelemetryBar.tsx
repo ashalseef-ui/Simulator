@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronUp,
   GripHorizontal,
-  Move,
   RotateCw,
 } from 'lucide-react';
 import { workerBridge } from '../engine/workerBridge';
@@ -47,14 +46,12 @@ export const VirtualClockTelemetryBar: React.FC = () => {
 
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Calculate default safe position (well clear of the bottom-right zoom controls)
+  // Calculate default safe position at top-right (well clear of bottom-right zoom controls and bottom-left link legend)
   const getDefaultPosition = useCallback(() => {
-    if (typeof window === 'undefined') return { x: 500, y: 500 };
+    if (typeof window === 'undefined') return { x: 500, y: 64 };
     const width = isExpanded ? 340 : 270;
-    const height = isExpanded ? 200 : 44;
-    // Position comfortably to the left/above zoom controls (which sit at bottom-16 right-4)
-    const x = Math.max(16, window.innerWidth - width - 80);
-    const y = Math.max(60, window.innerHeight - height - 160);
+    const x = Math.max(16, window.innerWidth - width - 20);
+    const y = 64; // Safely below topbar
     return { x, y };
   }, [isExpanded]);
 

@@ -1,5 +1,4 @@
-import { Device, DeviceInterface, Link, IpsecConfig } from '../../types/network';
-import { areSameSubnet, ipToInt } from '../../utils/ipUtils';
+import { Device } from '../../types/network';
 
 export interface IpsecTunnelSession {
   localGatewayIp: string;
@@ -96,8 +95,8 @@ export function computeIpsecSessions(devices: Device[]): Record<string, IpsecTun
  */
 export function matchIpsecCryptoMap(
   egressDev: Device,
-  srcIp: string,
-  dstIp: string
+  _srcIp?: string,
+  _dstIp?: string
 ): { isEncapsulated: boolean; tunnelDstIp?: string; tunnelSrcIp?: string; spi?: string } {
   if (!egressDev.config?.ipsec?.cryptoMaps) return { isEncapsulated: false };
 

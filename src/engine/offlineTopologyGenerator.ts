@@ -1,4 +1,4 @@
-import { Device, Link, CableType } from '../types/network';
+import { Device, Link } from '../types/network';
 import { createDevice } from './deviceSpecs';
 import { generateRandomMac } from '../utils/ipUtils';
 

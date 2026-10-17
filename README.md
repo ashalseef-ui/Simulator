@@ -149,7 +149,8 @@ npm run build
 
 Comprehensive engineering documentation is maintained in the [`/markdown`](./markdown/) directory:
 
-- [**README.md**](./markdown/README.md) - Primary project specification and overview
+- [**INDEX.md**](./markdown/INDEX.md) - Master documentation navigator and architecture index
+- [**PROJECT.md**](./markdown/PROJECT.md) - Simulation engine scope, verification metrics, and known limits
 - [**ARCHITECTURE.md**](./markdown/ARCHITECTURE.md) - Deep architectural breakdown of simulation mechanics and state flows
 - [**CONTRIBUTING.md**](./markdown/CONTRIBUTING.md) - Contribution standards, branching conventions, and PR guidelines
 - [**CHANGELOG.md**](./markdown/CHANGELOG.md) - Versioned history of features, bugfixes, and engine improvements
@@ -159,7 +160,18 @@ Comprehensive engineering documentation is maintained in the [`/markdown`](./mar
 - [**CLI_REFERENCE.md**](./markdown/CLI_REFERENCE.md) - Exhaustive reference for all 107 Cisco IOS CLI commands and multi-vendor translations
 - [**TESTING.md**](./markdown/TESTING.md) - Test methodologies, property-based tests, and STP/OSPF validation
 - [**ROADMAP.md**](./markdown/ROADMAP.md) - Long-term development goals, feature pipeline, and future releases
+- [**BRAND_LOC.md**](./markdown/BRAND_LOC.md) - Brand locations catalog, visual assets, and migration checklist
 - [**CODE_OF_CONDUCT.md**](./markdown/CODE_OF_CONDUCT.md) - Contributor Covenant v2.1 community standard
+
+### Module-Level Documentation
+
+- [**Source Code Architecture**](./src/README.md) (`src/README.md`)
+- [**Core Simulation Engines**](./src/engine/README.md) (`src/engine/README.md`)
+- [**UI Components Catalog**](./src/components/README.md) (`src/components/README.md`)
+- [**Web Worker Concurrency**](./src/workers/README.md) (`src/workers/README.md`)
+- [**Domain Types & Contracts**](./src/types/README.md) (`src/types/README.md`)
+- [**Utility Algorithms**](./src/utils/README.md) (`src/utils/README.md`)
+- [**Seed Datasets & Labs**](./src/data/README.md) (`src/data/README.md`)
 
 ---
 

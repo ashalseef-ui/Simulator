@@ -29,8 +29,6 @@ describe('Discrete-Event Simulation (DES) Virtual Clock', () => {
   });
 
   it('dispatches priority queue events at the exact scheduled tick', () => {
-    const eventLog: string[] = [];
-
     // Schedule events in non-chronological order
     clock.scheduleEvent('OSPF_HELLO', 200, 'OSPF Hello 200ms', 'R1');
     clock.scheduleEvent('STP_BPDU', 100, 'STP BPDU 100ms', 'SW1');

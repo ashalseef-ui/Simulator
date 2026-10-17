@@ -4,14 +4,12 @@ import {
   X,
   Sparkles,
   Zap,
-  Layers,
   ArrowRight,
   CheckCircle2,
   AlertCircle,
   Loader2,
   RotateCcw,
   WifiOff,
-  Cpu,
 } from 'lucide-react';
 import { Device, Link } from '../types/network';
 import { generateOfflineTopology, GeneratedTopologyResult } from '../engine/offlineTopologyGenerator';

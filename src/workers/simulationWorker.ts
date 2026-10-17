@@ -1,4 +1,4 @@
-import { calculateStp, calculatePvst } from '../engine/stpEngine';
+import { calculatePvst } from '../engine/stpEngine';
 import { computeOspf } from '../engine/ospfEngine';
 import { simulatePing, simulateDhcp } from '../engine/simulationEngine';
 import { computeEigrpNetworkState } from '../engine/protocols/eigrpEngine';

@@ -1,5 +1,5 @@
-import { Device, DeviceInterface, Link, IsisConfig } from '../../types/network';
-import { areSameSubnet, safeCidr } from '../../utils/ipUtils';
+import { Device, Link } from '../../types/network';
+import { areSameSubnet } from '../../utils/ipUtils';
 
 export interface IsisNeighbor {
   systemId: string;
@@ -158,7 +158,7 @@ export function computeIsisNetworkState(devices: Device[], links: Link[]): IsisC
       const neighborDev = isisDevices.find((d) => parseIsisNet(d.config.isis?.net || '')?.systemId === nei.systemId);
       if (!neighborDev) continue;
 
-      for (const [remIfName, remIf] of Object.entries(neighborDev.config.interfaces || {})) {
+      for (const [, remIf] of Object.entries(neighborDev.config.interfaces || {})) {
         if (!remIf.ip || !remIf.mask || remIf.status !== 'up') continue;
 
         // Skip directly connected subnets

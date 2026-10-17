@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Device,
   DeviceConfig,
@@ -10,8 +10,7 @@ import {
   StpTopologyState,
 } from './types/network';
 import { createDevice, validateCabling } from './engine/deviceSpecs';
-import { calculateStp, calculatePvst } from './engine/stpEngine';
-import { simulatePing, simulateDhcp } from './engine/simulationEngine';
+import { calculatePvst } from './engine/stpEngine';
 import { tileWindows, cascadeWindows } from './utils/windowLayout';
 import { LAB_SCENARIOS } from './data/labs';
 import { deepClone } from './utils/deepClone';

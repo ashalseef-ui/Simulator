@@ -7,17 +7,12 @@ import {
   Check,
   BookOpen,
   Filter,
-  Shield,
-  Layers,
-  Network,
-  Cpu,
   Globe,
   ArrowRightLeft,
 } from 'lucide-react';
 import {
   MULTI_VENDOR_ROSETTA_STONE,
   VENDOR_OS_PROFILES,
-  RosettaStoneEntry,
 } from '../engine/cli/multiVendorEngines';
 
 interface CommandEntry {

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Device, DeviceConfig, Link } from '../types/network';
 import { computeEigrpNetworkState } from '../engine/protocols/eigrpEngine';
 import { computeBgpNetworkState } from '../engine/protocols/bgpEngine';
-import { computeHsrpNetworkState } from '../engine/protocols/hsrpEngine';
 import { computeMplsNetworkState } from '../engine/protocols/mplsEngine';
 import { computeIpsecSessions } from '../engine/protocols/ipsecEngine';
 import { computeVxlanState } from '../engine/protocols/vxlanEngine';
@@ -18,11 +17,7 @@ import {
   Layers,
   Globe,
   Share2,
-  Server,
   Activity,
-  ArrowRight,
-  CheckCircle2,
-  AlertCircle,
   Wifi,
 } from 'lucide-react';
 
@@ -57,7 +52,6 @@ export const ProtocolsDashboard: React.FC<ProtocolsDashboardProps> = ({
   // Compute live protocol states
   const eigrpState = computeEigrpNetworkState(allDevices, allLinks);
   const bgpState = computeBgpNetworkState(allDevices, allLinks);
-  const hsrpState = computeHsrpNetworkState(allDevices, allLinks);
   const mplsState = computeMplsNetworkState(allDevices, allLinks);
   const ipsecState = computeIpsecSessions(allDevices);
   const vxlanState = computeVxlanState(allDevices);
@@ -70,10 +64,6 @@ export const ProtocolsDashboard: React.FC<ProtocolsDashboardProps> = ({
   const devEigrpRoutes = eigrpState.routes[device.id] || [];
   const devBgpPeers = bgpState.peers[device.id] || [];
   const devBgpEvpn = bgpState.evpnTable[device.id] || [];
-  const devHsrp = Object.values(hsrpState.groups).filter(
-    (g: any) => g.activeDeviceId === device.id || g.standbyDeviceId === device.id
-  );
-  const devMplsSessions = mplsState.ldpSessions[device.id] || [];
   const devMplsLfib = mplsState.lfib[device.id] || [];
   const devIpsecTunnels = ipsecState.activeTunnels.filter(
     (t) => t.localGatewayIp && Object.values(device.config.interfaces).some((i) => i.ip === t.localGatewayIp)
@@ -83,7 +73,6 @@ export const ProtocolsDashboard: React.FC<ProtocolsDashboardProps> = ({
   );
   const devSrv6Sids = srv6State.activeSids[device.id] || [];
   const devIsisNeighbors = isisState.neighbors[device.id] || [];
-  const devIsisRoutes = isisState.routes[device.id] || [];
   const devOspfNeighbors = ospfState.neighbors[device.id] || [];
   const devOspfRoutes = ospfState.routes[device.id] || [];
 

@@ -1,5 +1,5 @@
 import { Device, Link, StpTopologyState } from '../types/network';
-import { calculateStp, calculatePvst } from './stpEngine';
+import { calculatePvst } from './stpEngine';
 import { computeOspf, OspfState } from './ospfEngine';
 import { simulatePing, simulateDhcp } from './simulationEngine';
 import { DiscreteVirtualClock } from './virtualClock';

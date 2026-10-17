@@ -1,7 +1,6 @@
-import { Device, DeviceConfig, DeviceInterface, Link, NetworkOsType } from '../../types/network';
+import { Device, DeviceConfig, Link, NetworkOsType } from '../../types/network';
 import { isValidIp, maskToCidr, cidrToMask, getNetworkAddress } from '../../utils/ipUtils';
 import { CliSession } from '../cliEngine';
-import { simulatePing } from '../simulationEngine';
 import { deepClone } from '../../utils/deepClone';
 
 export interface VendorOsMetadata {
@@ -377,10 +376,10 @@ export function getMultiVendorPrompt(device: Device, session: CliSession): strin
 export function executeJunosCommand(
   rawLine: string,
   device: Device,
-  allDevices: Device[],
+  _allDevices: Device[],
   session: CliSession,
   onConfigChange: (c: DeviceConfig) => void,
-  allLinks?: Link[]
+  _allLinks?: Link[]
 ): { output: string; newSession: CliSession } {
   const line = rawLine.trim();
   const newSession: CliSession = {
@@ -388,7 +387,6 @@ export function executeJunosCommand(
     history: [...session.history, line],
     historyIndex: session.history.length + 1,
   };
-  const host = device.config.hostname || device.name;
   const config = { ...device.config };
 
   // Candidate config storage in session
@@ -680,10 +678,10 @@ ${Object.entries(candidate.interfaces || config.interfaces)
 export function executeAristaCommand(
   rawLine: string,
   device: Device,
-  allDevices: Device[],
+  _allDevices: Device[],
   session: CliSession,
-  onConfigChange: (c: DeviceConfig) => void,
-  allLinks?: Link[]
+  _onConfigChange: (c: DeviceConfig) => void,
+  _allLinks?: Link[]
 ): { output: string; newSession: CliSession } {
   const line = rawLine.trim();
   const newSession: CliSession = {
@@ -838,10 +836,10 @@ end`,
 export function executeLinuxCommand(
   rawLine: string,
   device: Device,
-  allDevices: Device[],
+  _allDevices: Device[],
   session: CliSession,
   onConfigChange: (c: DeviceConfig) => void,
-  allLinks?: Link[]
+  _allLinks?: Link[]
 ): { output: string; newSession: CliSession } {
   const line = rawLine.trim();
   const newSession: CliSession = {
@@ -1009,10 +1007,10 @@ export function executeLinuxCommand(
 export function executeMikrotikCommand(
   rawLine: string,
   device: Device,
-  allDevices: Device[],
+  _allDevices: Device[],
   session: CliSession,
   onConfigChange: (c: DeviceConfig) => void,
-  allLinks?: Link[]
+  _allLinks?: Link[]
 ): { output: string; newSession: CliSession } {
   const line = rawLine.trim();
   const newSession: CliSession = {
@@ -1068,7 +1066,7 @@ export function executeMikrotikCommand(
     const rows: string[] = [];
     Object.values(config.interfaces)
       .filter((i) => i.ip && i.status === 'up')
-      .forEach((i, idx) => {
+      .forEach((i) => {
         const net = getNetworkAddress(i.ip!, i.mask || '255.255.255.0');
         const cidr = maskToCidr(i.mask || '255.255.255.0');
         rows.push(`DAc  ${net}/${cidr}      ${i.name}           1`);

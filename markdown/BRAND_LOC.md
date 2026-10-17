@@ -95,6 +95,13 @@ All standard documentation files located in `/markdown/` consistently reference 
 | `markdown/CONTRIBUTING.md` | Community contribution standards, git branch naming, and pull request requirements. |
 | `markdown/CODE_OF_CONDUCT.md` | Contributor Covenant v2.1 pledge and community standards. |
 | `markdown/CHANGELOG.md` | Semantic release history documenting the v1.2.0 brand unification. |
+| `src/README.md` | Source code architecture overview and module index. |
+| `src/engine/README.md` | Core simulation engine, discrete clock, and protocol documentation. |
+| `src/components/README.md` | UI component tree, floating window manager, and canvas controls. |
+| `src/workers/README.md` | Web Worker background execution and message contracts. |
+| `src/types/README.md` | TypeScript models and domain dictionary. |
+| `src/utils/README.md` | Utility algorithms, IP bitwise math, and deep clone mechanics. |
+| `src/data/README.md` | Pre-configured topologies, CCNA labs, and NOC incident scenarios. |
 
 ---
 

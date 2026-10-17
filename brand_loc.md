@@ -74,7 +74,36 @@ This document catalogs every location where the project brand name (`WireCraft` 
 
 ---
 
-## 6. How to Rebrand in the Future (Quick Checklist)
+## 6. Industrial Markdown Documentation
+
+All documentation files located in `/markdown/` and `/src/` consistently reference the **WireCraft** brand:
+
+| File | Scope |
+|---|---|
+| `markdown/INDEX.md` | Master documentation hub header, architecture diagrams, and task links. |
+| `markdown/README.md` | Primary title, badges, feature descriptions, hardware emulation table, and license attribution. |
+| `markdown/PROJECT.md` | Technical project scope, simulation validation status, and trademark disclaimers. |
+| `markdown/ARCHITECTURE.md` | System topology diagrams, simulation pipeline, and concurrency specifications. |
+| `markdown/CLI_REFERENCE.md` | Title, prompt hierarchy, 107 command specifications, and multi-vendor translation tables. |
+| `markdown/API.md` | REST API header, service architecture, and backend diagnostic schemas. |
+| `markdown/TESTING.md` | Vitest configuration, property-based invariants, and CLI execution tests. |
+| `markdown/DEPLOYMENT.md` | Production deployment guide, Dockerfile, and container architecture. |
+| `markdown/SECURITY.md` | Vulnerability disclosure policy, client sandbox isolation, and contact emails. |
+| `markdown/ROADMAP.md` | Strategic milestones, release timeline, and multi-year engineering roadmap. |
+| `markdown/CONTRIBUTING.md` | Community contribution standards, git branch naming, and pull request requirements. |
+| `markdown/CODE_OF_CONDUCT.md` | Contributor Covenant v2.1 pledge and community standards. |
+| `markdown/CHANGELOG.md` | Semantic release history documenting the v1.2.0 brand unification. |
+| `src/README.md` | Source code architecture overview and module index. |
+| `src/engine/README.md` | Core simulation engine, discrete clock, and protocol documentation. |
+| `src/components/README.md` | UI component tree, floating window manager, and canvas controls. |
+| `src/workers/README.md` | Web Worker background execution and message contracts. |
+| `src/types/README.md` | TypeScript models and domain dictionary. |
+| `src/utils/README.md` | Utility algorithms, IP bitwise math, and deep clone mechanics. |
+| `src/data/README.md` | Pre-configured topologies, CCNA labs, and NOC incident scenarios. |
+
+---
+
+## 7. How to Rebrand in the Future (Quick Checklist)
 
 When changing to a new brand name (e.g., from `WireCraft` to `NewBrand`):
 
@@ -98,3 +127,4 @@ When changing to a new brand name (e.g., from `WireCraft` to `NewBrand`):
    npm test            # Verifies all unit & property tests pass
    npm run build       # Verifies Vite production build
    ```
+

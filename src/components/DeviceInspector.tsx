@@ -32,9 +32,6 @@ import {
   Loader2,
   Layers,
   Shield,
-  ShieldAlert,
-  ChevronDown,
-  ChevronRight,
   BookOpen,
   Network,
 } from 'lucide-react';

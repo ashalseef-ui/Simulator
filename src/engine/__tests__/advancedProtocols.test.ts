@@ -5,8 +5,8 @@ import { calculateEigrpMetric, computeEigrpNetworkState } from '../protocols/eig
 import { selectBestBgpPath, computeBgpNetworkState, BgpRibEntry } from '../protocols/bgpEngine';
 import { generateHsrpVirtualMac, computeHsrpNetworkState, resolveHsrpGateway } from '../protocols/hsrpEngine';
 import { computeMplsNetworkState } from '../protocols/mplsEngine';
-import { computeIpsecSessions, matchIpsecCryptoMap } from '../protocols/ipsecEngine';
-import { computeVxlanState, matchVxlanOverlay } from '../protocols/vxlanEngine';
+import { matchIpsecCryptoMap } from '../protocols/ipsecEngine';
+import { matchVxlanOverlay } from '../protocols/vxlanEngine';
 import { computeSrv6State, processSrv6Packet } from '../protocols/srv6Engine';
 import { parseIsisNet, computeIsisNetworkState } from '../protocols/isisEngine';
 import { computeWirelessIotNetworkState } from '../protocols/wirelessIotEngine';
@@ -190,6 +190,7 @@ describe('Advanced Enterprise & Service Provider Protocol Engines', () => {
       };
 
       const state = computeHsrpNetworkState([r1, r2], []);
+      expect(state.groups).toBeDefined();
       const gatewayRes = resolveHsrpGateway('192.168.1.1', [r1, r2]);
       expect(gatewayRes).not.toBeNull();
       expect(gatewayRes?.activeDevice.id).toBe('r1');

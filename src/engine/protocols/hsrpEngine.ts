@@ -1,5 +1,5 @@
 import { Device, DeviceInterface, Link } from '../../types/network';
-import { areSameSubnet, ipToInt } from '../../utils/ipUtils';
+import { ipToInt } from '../../utils/ipUtils';
 
 export interface HsrpActiveState {
   group: number;
@@ -25,7 +25,7 @@ export function generateHsrpVirtualMac(group: number): string {
  * Computes HSRP state across all devices participating in First Hop Redundancy.
  * Assigns Active and Standby roles, preemption, and virtual MAC mapping.
  */
-export function computeHsrpNetworkState(devices: Device[], links: Link[]): {
+export function computeHsrpNetworkState(devices: Device[], _links?: Link[]): {
   groups: Record<string, HsrpActiveState>; // key: `${subnet}:${group}`
   deviceStates: Record<string, Record<number, 'Active' | 'Standby' | 'Listen'>>; // deviceId -> group -> state
 } {

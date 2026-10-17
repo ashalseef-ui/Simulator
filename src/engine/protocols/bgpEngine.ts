@@ -1,5 +1,5 @@
-import { Device, DeviceInterface, Link, BgpNeighbor, BgpEvpnRoute } from '../../types/network';
-import { areSameSubnet, ipToInt, safeCidr } from '../../utils/ipUtils';
+import { Device, Link, BgpEvpnRoute } from '../../types/network';
+import { areSameSubnet, ipToInt } from '../../utils/ipUtils';
 
 export interface BgpPeerSession {
   peerIp: string;
@@ -81,7 +81,7 @@ export function selectBestBgpPath(paths: BgpRibEntry[]): BgpRibEntry | null {
 /**
  * Computes global BGP sessions, BGP RIB, and EVPN route advertisements.
  */
-export function computeBgpNetworkState(devices: Device[], links: Link[]): BgpComputedState {
+export function computeBgpNetworkState(devices: Device[], _links?: Link[]): BgpComputedState {
   const peers: Record<string, BgpPeerSession[]> = {};
   const rib: Record<string, BgpRibEntry[]> = {};
   const routes: Record<string, { prefix: string; mask: string; nextHop: string; outInterface: string; metric: number }[]> = {};

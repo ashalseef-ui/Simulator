@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { calculateStp, calculatePvst, getStpPortState } from '../stpEngine';
+import { calculatePvst, getStpPortState } from '../stpEngine';
 import { createDevice } from '../deviceSpecs';
 import { Device, Link } from '../../types/network';
 import { createCliSession, executeCliCommand } from '../cliEngine';

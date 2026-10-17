@@ -269,16 +269,6 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
   onExitChallenge,
   feedbackMessage,
 }) => {
-  const [selectedChallenge, setSelectedChallenge] = React.useState<ChaosChallenge>(
-    activeChallenge || CHAOS_CHALLENGES[0]
-  );
-
-  React.useEffect(() => {
-    if (activeChallenge) {
-      setSelectedChallenge(activeChallenge);
-    }
-  }, [activeChallenge]);
-
   if (!isOpen) return null;
 
   const formatTime = (secs: number) => {

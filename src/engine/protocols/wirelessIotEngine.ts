@@ -1,4 +1,4 @@
-import { Device, DeviceInterface, Link, WirelessConfig, IotConfig } from '../../types/network';
+import { Device, Link } from '../../types/network';
 
 export interface WirelessAssociationState {
   clientDeviceId: string;

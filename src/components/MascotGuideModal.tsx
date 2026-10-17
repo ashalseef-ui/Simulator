@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Bot,
   X,
   Sparkles,
-  HelpCircle,
-  MessageSquare,
-  Wand2,
-  Terminal,
-  Network,
   ChevronRight,
   Lightbulb,
 } from 'lucide-react';
@@ -42,8 +36,14 @@ const PETE_TIPS = [
     actionKey: 'labs',
   },
   {
-    title: 'Troubleshoot with TAC Co-Pilot',
-    text: "Stuck on a broken network? Open the NOC Incident Triage modal or ask our Socratic AI Mentor to guide you through debugging step-by-step.",
+    title: 'Troubleshoot Live Outage Tickets',
+    text: "Stuck on a broken network? Open NOC Incident Triage to solve real-world outages, MTU mismatches, and routing failures with TAC Co-Pilot assistance.",
+    actionLabel: 'Open NOC Incidents',
+    actionKey: 'noc',
+  },
+  {
+    title: 'Learn with Socratic Mentor',
+    text: "Want guided inquiry rather than direct answers? Our Socratic AI Mentor challenges you with diagnostic questions to build genuine network intuition.",
     actionLabel: 'Ask Socratic Mentor',
     actionKey: 'socratic',
   },
@@ -70,6 +70,9 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
     } else if (currentTip.actionKey === 'labs') {
       onClose();
       onOpenLabs();
+    } else if (currentTip.actionKey === 'noc') {
+      onClose();
+      onOpenNoc();
     } else if (currentTip.actionKey === 'socratic') {
       onClose();
       onOpenSocratic();

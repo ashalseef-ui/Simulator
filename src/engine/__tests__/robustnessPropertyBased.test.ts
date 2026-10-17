@@ -12,7 +12,7 @@ import { deepClone } from '../../utils/deepClone';
 import { lookupRoute, simulatePing } from '../simulationEngine';
 import { executeCliCommand, createCliSession } from '../cliEngine';
 import { createDevice } from '../deviceSpecs';
-import { Device, Link, DeviceConfig } from '../../types/network';
+import { Device, DeviceConfig } from '../../types/network';
 
 describe('Pillar 4: Property-Based & Fuzz Robustness Suite', () => {
   describe('ipUtils robustness under arbitrary inputs', () => {
@@ -59,6 +59,7 @@ describe('Pillar 4: Property-Based & Fuzz Robustness Suite', () => {
         fc.property(fc.integer({ min: -50, max: 100 }), (num) => {
           const mask = cidrToMask(num);
           expect(typeof mask).toBe('string');
+          expect(typeof maskToCidr(mask)).toBe('number');
         }),
         { numRuns: 100 }
       );

@@ -1,5 +1,4 @@
-import { Device, DeviceInterface, Link, VxlanConfig } from '../../types/network';
-import { areSameSubnet } from '../../utils/ipUtils';
+import { Device } from '../../types/network';
 
 export interface VxlanTunnelState {
   vni: number;
