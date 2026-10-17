@@ -24,22 +24,6 @@ Welcome to the centralized technical documentation repository for **WireCraft**,
 
 ---
 
-## 📦 Module-Level Architecture Documentation (`/src/*`)
-
-In addition to repository-level guides, each core module maintains localized documentation explaining directory conventions and exported APIs:
-
-| Module Document | Path | Scope & Focus |
-|---|---|---|
-| [**Source Architecture**](../src/README.md) | `src/README.md` | Top-level client architecture, entry points (`main.tsx`, `App.tsx`), and module relationships. |
-| [**Core Engine Guide**](../src/engine/README.md) | `src/engine/README.md` | Algorithmic breakdown of L2/L3 forwarding, discrete virtual clock, STP, OSPF, and multi-protocol engines. |
-| [**UI Components Guide**](../src/components/README.md) | `src/components/README.md` | React 19 component hierarchy, desktop window management, Canvas pan/zoom, and modal subsystems. |
-| [**Web Worker Concurrency**](../src/workers/README.md) | `src/workers/README.md` | Off-thread simulation execution, request/response contracts, and main-thread fallback strategies. |
-| [**Domain Types & Models**](../src/types/README.md) | `src/types/README.md` | TypeScript data dictionary for Devices, Interfaces, Cables, and Protocol configurations. |
-| [**Utility Algorithms**](../src/utils/README.md) | `src/utils/README.md` | Bitwise IPv4 math, subnet mask calculations, and circular-safe deep object cloning. |
-| [**Seed Data & Labs**](../src/data/README.md) | `src/data/README.md` | Pre-configured enterprise network topologies, NOC incident tickets, and 10 guided CCNA certification labs. |
-
----
-
 ## 🏗️ Architecture at a Glance
 
 ```

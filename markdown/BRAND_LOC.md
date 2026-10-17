@@ -15,8 +15,8 @@ This document catalogs every location where the project brand name (`WireCraft` 
 | `index.html` | `line 7` (`<link rel="icon">`) | Favicon SVG reference (`/favicon.svg`) |
 | `index.html` | `line 8-10` (`meta description`, `og:title`, `og:description`) | OpenGraph and search engine meta description cards |
 | `package.json` | `line 2` (`"name"`) | NPM package name: `"wirecraft"` |
-| `PROJECT.md` | `line 1, 51` | Root project overview title and legal/trademark attribution section |
-| `brand_loc.md` | Root catalog file | Root reference mirror of brand locations |
+| `markdown/PROJECT.md` | `line 1, 51` | Project overview title and legal/trademark attribution section |
+| `README.md` | `line 1` | Root project repository overview |
 
 ---
 
@@ -95,13 +95,6 @@ All standard documentation files located in `/markdown/` consistently reference 
 | `markdown/CONTRIBUTING.md` | Community contribution standards, git branch naming, and pull request requirements. |
 | `markdown/CODE_OF_CONDUCT.md` | Contributor Covenant v2.1 pledge and community standards. |
 | `markdown/CHANGELOG.md` | Semantic release history documenting the v1.2.0 brand unification. |
-| `src/README.md` | Source code architecture overview and module index. |
-| `src/engine/README.md` | Core simulation engine, discrete clock, and protocol documentation. |
-| `src/components/README.md` | UI component tree, floating window manager, and canvas controls. |
-| `src/workers/README.md` | Web Worker background execution and message contracts. |
-| `src/types/README.md` | TypeScript models and domain dictionary. |
-| `src/utils/README.md` | Utility algorithms, IP bitwise math, and deep clone mechanics. |
-| `src/data/README.md` | Pre-configured topologies, CCNA labs, and NOC incident scenarios. |
 
 ---
 
