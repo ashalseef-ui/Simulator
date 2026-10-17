@@ -614,6 +614,10 @@ export default function App() {
   const handleImportLab = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('Lab file size exceeds 5MB limit.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -621,9 +625,23 @@ export default function App() {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
 
-        if (!parsed || !Array.isArray(parsed.devices) || !Array.isArray(parsed.links)) {
-          setErrorMessage('Invalid Lab JSON file format. File must contain "devices" and "links" arrays.');
+        if (!parsed || !Array.isArray(parsed.devices) || parsed.devices.length > 200 || !Array.isArray(parsed.links) || parsed.links.length > 500) {
+          setErrorMessage('Invalid Lab JSON file format or exceeds device (200) / link (500) limits.');
           return;
+        }
+
+        for (const d of parsed.devices) {
+          if (!d || typeof d.id !== 'string' || typeof d.type !== 'string' || !d.config) {
+            setErrorMessage('Invalid device object structure in lab file.');
+            return;
+          }
+        }
+
+        for (const l of parsed.links) {
+          if (!l || typeof l.fromDevice !== 'string' || typeof l.toDevice !== 'string') {
+            setErrorMessage('Invalid link object structure in lab file.');
+            return;
+          }
         }
 
         setDevices(parsed.devices);

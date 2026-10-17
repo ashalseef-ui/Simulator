@@ -639,7 +639,14 @@ export function simulatePing(
 
     // Decrement TTL at router hops
     if (hop.fromDev.type === 'router' || hop.fromDev.type === 'firewall' || hop.fromDev.type === 'l3switch') {
-      ttl = Math.max(1, ttl - 1);
+      ttl -= 1;
+      if (ttl <= 0) {
+        return {
+          steps,
+          success: false,
+          error: `TTL expired in transit at ${hop.fromDev.name}.`,
+        };
+      }
     }
 
     let stepType: SimulationStep['type'] = 'ICMP';

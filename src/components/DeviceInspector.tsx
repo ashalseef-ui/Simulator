@@ -147,7 +147,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [cmdOutput, setCmdOutput] = useState<string[]>(['WireCraft Command Prompt [Version 1.0]', 'Type "ping <ip>", "nslookup <domain>", or "help".', '']);
   const [cmdInput, setCmdInput] = useState('');
   const [browserUrl, setBrowserUrl] = useState('http://wirecraft.local');
-  const [browserContent, setBrowserContent] = useState<string | null>(null);
+  type BrowserViewState = { kind: 'page'; title: string; body: string } | { kind: 'error'; url: string } | null;
+  const [browserView, setBrowserView] = useState<BrowserViewState>(null);
 
   // Server DNS Record input state
   const [newDnsDomain, setNewDnsDomain] = useState('');
@@ -769,22 +770,9 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
 
     if (foundServer?.config.services?.http) {
       const h = foundServer.config.services.http;
-      setBrowserContent(`
-        <div class="p-6 bg-slate-900 text-slate-100 rounded-lg border border-slate-800">
-          <div class="text-xl font-bold text-sky-400 mb-2">${h.title}</div>
-          <p class="text-sm text-slate-300 leading-relaxed">${h.body}</p>
-          <div class="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
-            Served by WireCraft Enterprise Web Engine (HTTP/1.1 200 OK)
-          </div>
-        </div>
-      `);
+      setBrowserView({ kind: 'page', title: h.title, body: h.body });
     } else {
-      setBrowserContent(`
-        <div class="p-6 bg-slate-900 text-slate-300 rounded-lg border border-slate-800 text-center">
-          <div class="text-lg font-bold text-rose-400 mb-1">404 Not Found</div>
-          <p class="text-xs text-slate-400">Unable to establish connection to ${browserUrl}. Server offline or host unreachable.</p>
-        </div>
-      `);
+      setBrowserView({ kind: 'error', url: browserUrl });
     }
   };
 
@@ -1898,9 +1886,22 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
                   </button>
                 </div>
                 <div className="flex-1 p-4 overflow-y-auto bg-slate-950">
-                  {browserContent ? (
-                    <div dangerouslySetInnerHTML={{ __html: browserContent }} />
-                  ) : (
+                  {browserView?.kind === 'page' && (
+                    <div className="p-6 bg-slate-900 text-slate-100 rounded-lg border border-slate-800">
+                      <div className="text-xl font-bold text-sky-400 mb-2">{browserView.title}</div>
+                      <p className="text-sm text-slate-300 leading-relaxed">{browserView.body}</p>
+                      <div className="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
+                        Served by WireCraft Enterprise Web Engine (HTTP/1.1 200 OK)
+                      </div>
+                    </div>
+                  )}
+                  {browserView?.kind === 'error' && (
+                    <div className="p-6 bg-slate-900 text-slate-300 rounded-lg border border-slate-800 text-center">
+                      <div className="text-lg font-bold text-rose-400 mb-1">404 Not Found</div>
+                      <p className="text-xs text-slate-400">Unable to establish connection to {browserView.url}. Server offline or host unreachable.</p>
+                    </div>
+                  )}
+                  {!browserView && (
                     <div className="text-center py-12 text-slate-500 text-xs">
                       Enter server URL or domain (e.g. 192.168.1.10) and click Go.
                     </div>
