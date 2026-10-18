@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Unified project branding under **WireCraft** across all components, metadata, and backend models.
   - Added vector `WireCraftLogo` component with dual compact and wordmark modes.
   - Added standalone `public/favicon.svg` and `public/wirecraft_logo.svg` for direct browser delivery.
-  - Created `brand_loc.md` single-source-of-truth brand location catalog.
+  - Created `markdown/BRAND_LOC.md` single-source-of-truth brand location catalog.
 - **Multi-Vendor CLI Translation Engine**: Rosetta Stone matrix translating Cisco IOS commands to Juniper Junos, Arista EOS, Linux/VyOS, and MikroTik RouterOS.
 - **Property-Based Testing**: Added `fast-check` property tests in `src/engine/__tests__/robustnessPropertyBased.test.ts` fuzzing packet paths, topology graphs, and route lookups.
 
