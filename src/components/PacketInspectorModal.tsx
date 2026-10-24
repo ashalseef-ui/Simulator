@@ -1,6 +1,7 @@
 import React from 'react';
 import { SimulationStep } from '../types/network';
 import { X, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useDraggable } from '../hooks/useDraggable';
 
 interface PacketInspectorModalProps {
   step: SimulationStep | null;
@@ -17,6 +18,8 @@ export const PacketInspectorModal: React.FC<PacketInspectorModalProps> = ({
   onSelectStepIndex,
   onClose,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
+
   if (!step) return null;
 
   const hasMultipleSteps = allSteps.length > 1;
@@ -24,10 +27,16 @@ export const PacketInspectorModal: React.FC<PacketInspectorModalProps> = ({
   const canGoNext = currentStepIndex < allSteps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none animate-in fade-in">
-      <div className="w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
         {/* Modal Header */}
-        <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25">
               <Layers className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import { LAB_SCENARIOS } from '../data/labs';
 import { Device, Link } from '../types/network';
 import {
@@ -27,6 +28,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
   onLoadTopology,
   onClose,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [selectedLabId, setSelectedLabId] = useState<string>(LAB_SCENARIOS[0].id);
   const [showSolution, setShowSolution] = useState<boolean>(false);
   const [copiedDevice, setCopiedDevice] = useState<string | null>(null);
@@ -52,9 +54,15 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none">
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh]"
+      >
         {/* Header */}
-        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               <BookOpen className="w-4 h-4" />

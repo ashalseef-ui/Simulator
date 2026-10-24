@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   X,
   Sparkles,
@@ -15,6 +16,7 @@ interface AiDiagramModalProps {
 }
 
 export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [activeTab, setActiveTab] = useState<'generate' | 'edit'>('generate');
 
   // Generation State (gemini-3-pro-image-preview)
@@ -116,9 +118,15 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 select-none">
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[88vh]">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[88vh]"
+      >
         {/* Header */}
-        <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 text-white">
               <Sparkles className="w-4 h-4" />

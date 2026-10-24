@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, ShieldCheck, Scale, AlertCircle, BookOpen } from 'lucide-react';
 import { WireCraftLogo } from './WireCraftLogo';
+import { useDraggable } from '../hooks/useDraggable';
 
 interface AboutLegalModalProps {
   isOpen: boolean;
@@ -8,13 +9,21 @@ interface AboutLegalModalProps {
 }
 
 export const AboutLegalModal: React.FC<AboutLegalModalProps> = ({ isOpen, onClose }) => {
+  const { position, handleMouseDown } = useDraggable();
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header */}
-        <div className="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <Scale className="w-5 h-5 text-cyan-400" />
             <h2 className="text-base font-bold text-white">About & Legal Disclaimers</h2>

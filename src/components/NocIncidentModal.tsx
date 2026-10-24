@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   IncidentScenario,
   INCIDENT_SCENARIOS,
@@ -45,6 +46,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
   onClearIncident,
   onOpenDevice,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [activeTab, setActiveTab] = useState<'incidents' | 'diagnostics' | 'copilot'>('incidents');
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>(
     activeIncident?.id || INCIDENT_SCENARIOS[0].id
@@ -225,10 +227,16 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      >
         {/* Header */}
-        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
               <ShieldAlert className="w-4 h-4" />

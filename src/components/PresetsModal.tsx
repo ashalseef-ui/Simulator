@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { TOPOLOGY_PRESETS, TopologyPreset } from '../data/sampleTopologies';
 import { Device, Link } from '../types/network';
 import { X, LayoutTemplate, ArrowRight, Download, Upload, FileCode } from 'lucide-react';
+import { useDraggable } from '../hooks/useDraggable';
 
 interface PresetsModalProps {
   onLoadTopology: (devices: Device[], links: Link[]) => void;
@@ -16,6 +17,7 @@ export const PresetsModal: React.FC<PresetsModalProps> = ({
   onImportLab,
   onClose,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const modalFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSelectPreset = (preset: TopologyPreset) => {
@@ -25,7 +27,7 @@ export const PresetsModal: React.FC<PresetsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <input
         type="file"
         ref={modalFileInputRef}
@@ -37,9 +39,15 @@ export const PresetsModal: React.FC<PresetsModalProps> = ({
         }}
         className="hidden"
       />
-      <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
         {/* Header */}
-        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
               <LayoutTemplate className="w-4 h-4" />

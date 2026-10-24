@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import { Device, Link, DeviceConfig } from '../types/network';
 import { audioEngine } from '../utils/audioEffects';
 import {
@@ -41,6 +42,7 @@ export const NetGremlinWidget: React.FC<NetGremlinWidgetProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [isActive, setIsActive] = useState<boolean>(false);
   const [mischiefHistory, setMischiefHistory] = useState<MischiefRecord[]>([]);
   const [currentSpeech, setCurrentSpeech] = useState<string>(
@@ -244,9 +246,15 @@ export const NetGremlinWidget: React.FC<NetGremlinWidgetProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-14 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-slate-900/95 border border-amber-500/50 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden flex flex-col select-none animate-in fade-in slide-in-from-bottom-4 duration-200">
+    <div
+      style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+      className="fixed bottom-14 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-slate-900/95 border border-amber-500/50 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden flex flex-col select-none animate-in fade-in slide-in-from-bottom-4 duration-200"
+    >
       {/* Gremlin Header */}
-      <div className="p-3 bg-gradient-to-r from-amber-950/80 via-slate-950 to-slate-900 border-b border-amber-500/30 flex items-center justify-between">
+      <div
+        onMouseDown={handleMouseDown}
+        className="p-3 bg-gradient-to-r from-amber-950/80 via-slate-950 to-slate-900 border-b border-amber-500/30 flex items-center justify-between cursor-grab active:cursor-grabbing"
+      >
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-lg shadow-inner">
             {gremlinMood === 'mischief' ? '😈' : gremlinMood === 'busted' ? '😵' : '👹'}

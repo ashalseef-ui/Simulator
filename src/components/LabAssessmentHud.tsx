@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import { LAB_SCENARIOS } from '../data/labs';
 import { Device, Link, LabScenario } from '../types/network';
 import {
@@ -35,6 +36,7 @@ export const LabAssessmentHud: React.FC<LabAssessmentHudProps> = ({
   onCloseLab,
   onRequestAiHint,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [showHintId, setShowHintId] = useState<string | null>(null);
   const [hasCelebrated, setHasCelebrated] = useState<boolean>(false);
@@ -58,7 +60,10 @@ export const LabAssessmentHud: React.FC<LabAssessmentHudProps> = ({
   }, [is100Percent, hasCelebrated]);
 
   return (
-    <div className="absolute top-3 right-4 z-40 w-96 max-w-[calc(100vw-2rem)] select-none">
+    <div
+      style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+      className="absolute top-3 right-4 z-40 w-96 max-w-[calc(100vw-2rem)] select-none"
+    >
       <div
         className={`rounded-2xl border backdrop-blur-md shadow-2xl transition-all duration-300 overflow-hidden ${
           is100Percent
@@ -67,7 +72,10 @@ export const LabAssessmentHud: React.FC<LabAssessmentHudProps> = ({
         }`}
       >
         {/* HUD Top Bar Header */}
-        <div className="px-4 py-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-2">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-4 py-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               className={`p-1.5 rounded-lg border ${

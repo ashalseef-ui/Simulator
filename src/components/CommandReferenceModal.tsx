@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   Terminal,
   Search,
@@ -30,6 +31,7 @@ export const CommandReferenceModal: React.FC<CommandReferenceModalProps> = ({
   onClose,
   onInsertCommand,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [viewMode, setViewMode] = useState<'rosetta' | 'cisco'>('rosetta');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -104,9 +106,15 @@ export const CommandReferenceModal: React.FC<CommandReferenceModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden font-sans">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden font-sans"
+      >
         {/* Header */}
-        <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-sky-500/20 text-sky-400 rounded-lg border border-sky-500/40">
               <Globe className="w-4 h-4" />

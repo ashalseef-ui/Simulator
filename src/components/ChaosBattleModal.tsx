@@ -1,4 +1,5 @@
 import React from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   Flame,
   X,
@@ -269,6 +270,8 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
   onExitChallenge,
   feedbackMessage,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
+
   if (!isOpen) return null;
 
   const formatTime = (secs: number) => {
@@ -278,10 +281,16 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-amber-500/50 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-amber-500/50 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header */}
-        <div className="px-5 py-3 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md">
               <Flame className="w-4 h-4 animate-pulse" />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   Wand2,
   X,
@@ -65,6 +66,7 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
   onDeployTopology,
   onSwitchToWhiteboardScanner,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [prompt, setPrompt] = useState('');
   const [forceOffline, setForceOffline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -139,9 +141,15 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/20">
               <Wand2 className="w-5 h-5" />

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import {
   Camera,
   X,
@@ -68,6 +69,7 @@ export const WhiteboardScanModal: React.FC<WhiteboardScanModalProps> = ({
   onDeployTopology,
   onSwitchToTextArchitect,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -407,9 +409,15 @@ export const WhiteboardScanModal: React.FC<WhiteboardScanModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-slate-900 border border-slate-700/80 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-150">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-slate-700/80 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70 cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
               <Camera className="w-5 h-5" />

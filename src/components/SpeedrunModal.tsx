@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDraggable } from '../hooks/useDraggable';
 import { Device, Link } from '../types/network';
 import { createDevice } from '../engine/deviceSpecs';
 import { audioEngine } from '../utils/audioEffects';
@@ -274,6 +275,7 @@ export const SpeedrunModal: React.FC<SpeedrunModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [selectedChallengeId, setSelectedChallengeId] = useState<string>(SPEEDRUN_CHALLENGES[0].id);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [elapsedMs, setElapsedMs] = useState<number>(0);
@@ -384,10 +386,16 @@ export const SpeedrunModal: React.FC<SpeedrunModalProps> = ({
   const currentValidation = challenge.validate(devices, links);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 select-none">
-      <div className="w-full max-w-4xl bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh] animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="w-full max-w-4xl bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh] animate-in fade-in duration-200"
+      >
         {/* Header */}
-        <div className="px-5 py-2.5 bg-gradient-to-r from-amber-950/80 via-slate-950 to-slate-900 border-b border-amber-500/30 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="px-5 py-2.5 bg-gradient-to-r from-amber-950/80 via-slate-950 to-slate-900 border-b border-amber-500/30 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
               <Trophy className="w-4 h-4" />

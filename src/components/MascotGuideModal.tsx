@@ -6,6 +6,7 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import mascotImg from '../assets/images/wirecraft_mascot_packet_pete.jpg';
+import { useDraggable } from '../hooks/useDraggable';
 
 interface MascotGuideModalProps {
   isOpen: boolean;
@@ -65,6 +66,7 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
   onOpenSocratic,
   onOpenNoc,
 }) => {
+  const { position, handleMouseDown } = useDraggable();
   const [currentTipIdx, setCurrentTipIdx] = useState(0);
 
   if (!isOpen) return null;
@@ -92,9 +94,15 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-sky-500/40 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      <div
+        style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+        className="bg-slate-900 border border-sky-500/40 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+      >
         {/* Header Banner */}
-        <div className="relative bg-gradient-to-r from-sky-950 via-slate-950 to-indigo-950 px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+        <div
+          onMouseDown={handleMouseDown}
+          className="relative bg-gradient-to-r from-sky-950 via-slate-950 to-indigo-950 px-5 py-3.5 border-b border-slate-800 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        >
           <div className="flex items-center gap-3">
             <div className="relative">
               <img
