@@ -11,6 +11,7 @@ interface MascotGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenTextToTopology: () => void;
+  onOpenWhiteboardScan?: () => void;
   onOpenLabs: () => void;
   onOpenSocratic: () => void;
   onOpenNoc: () => void;
@@ -28,6 +29,12 @@ const PETE_TIPS = [
     text: "Click 'AI Lab Architect' in the top bar and type anything like 'Build an OSPF area 0 network' to instantly synthesize a fully working lab!",
     actionLabel: 'Open AI Lab Architect',
     actionKey: 'topology',
+  },
+  {
+    title: 'Snap & Digitize Whiteboards (100% Verified)',
+    text: "Drew a network diagram on a whiteboard, notebook, or napkin? Upload the photo to Whiteboard Scanner! Our vision OCR auto-heals smudged port numbers and lets you verify everything in the Pre-Flight review before rendering.",
+    actionLabel: 'Open Whiteboard Scanner',
+    actionKey: 'whiteboard',
   },
   {
     title: 'Master the IOS CLI',
@@ -53,6 +60,7 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
   isOpen,
   onClose,
   onOpenTextToTopology,
+  onOpenWhiteboardScan,
   onOpenLabs,
   onOpenSocratic,
   onOpenNoc,
@@ -67,6 +75,9 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
     if (currentTip.actionKey === 'topology') {
       onClose();
       onOpenTextToTopology();
+    } else if (currentTip.actionKey === 'whiteboard') {
+      onClose();
+      if (onOpenWhiteboardScan) onOpenWhiteboardScan();
     } else if (currentTip.actionKey === 'labs') {
       onClose();
       onOpenLabs();
@@ -83,24 +94,24 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-sky-500/40 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
         {/* Header Banner */}
-        <div className="relative bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 p-6 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="relative bg-gradient-to-r from-sky-950 via-slate-950 to-indigo-950 px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <div className="relative">
               <img
                 src={mascotImg}
                 alt="Packet Pete"
-                className="w-16 h-16 rounded-2xl object-cover border-2 border-sky-400 shadow-lg shadow-sky-500/30"
+                className="w-12 h-12 rounded-xl object-cover border-2 border-sky-400 shadow-md shadow-sky-500/30"
               />
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-slate-900 animate-pulse" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-slate-900 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold text-white">Packet Pete</h3>
+                <h3 className="text-sm font-extrabold text-white">Packet Pete</h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                   WireCraft Mascot
                 </span>
               </div>
-              <p className="text-xs text-slate-300">Your AI Study & Routing Companion</p>
+              <p className="text-[11px] text-slate-300">Your AI Study & Routing Companion</p>
             </div>
           </div>
           <button
@@ -113,10 +124,10 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
         </div>
 
         {/* Tip Body */}
-        <div className="p-6 space-y-4">
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
-            <div className="flex items-center gap-2 text-sky-400 text-xs font-bold uppercase tracking-wider">
-              <Lightbulb className="w-4 h-4 text-amber-400" />
+        <div className="p-4 space-y-3">
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-sky-400 text-xs font-bold uppercase tracking-wider">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
               <span>{currentTip.title}</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
@@ -136,7 +147,7 @@ export const MascotGuideModal: React.FC<MascotGuideModalProps> = ({
         </div>
 
         {/* Footer Navigation */}
-        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             {PETE_TIPS.map((_, i) => (
               <button

@@ -118,7 +118,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 select-none">
       <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[88vh]">
         {/* Header */}
-        <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 text-white">
               <Sparkles className="w-4 h-4" />
@@ -164,7 +164,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
 
             <button
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -174,7 +174,7 @@ export const AiDiagramModal: React.FC<AiDiagramModalProps> = ({ onClose }) => {
         {/* Content Body: Split View (Controls Left, Image Preview Right) */}
         <div className="flex-1 flex overflow-hidden">
           {/* Controls Panel */}
-          <div className="w-88 border-r border-slate-800 bg-slate-950/70 p-5 overflow-y-auto space-y-4 custom-scrollbar text-xs">
+          <div className="w-88 border-r border-slate-800 bg-slate-950/70 p-4 overflow-y-auto space-y-3.5 custom-scrollbar text-xs">
             {activeTab === 'generate' ? (
               <>
                 {/* Image Size Affordance (1K, 2K, 4K) */}

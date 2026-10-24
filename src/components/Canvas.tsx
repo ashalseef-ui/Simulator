@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   Device,
   Link,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { DeviceFrontPanel } from './DeviceFrontPanel';
+import { CanvasLinksOverlay } from './canvas/CanvasLinksOverlay';
 
 interface CanvasProps {
   devices: Device[];
@@ -287,164 +288,86 @@ export const Canvas: React.FC<CanvasProps> = ({
     return ports;
   };
 
-  // Calculate Geometry for Links (Cards are 80x80px squares centered at x+40, y+40)
-  const renderedLinks = links.map((link) => {
-    const devA = devices.find((d) => d.id === link.fromDevice);
-    const devB = devices.find((d) => d.id === link.toDevice);
+  // Memoized selected link info for HUD and inspector
+  const selectedLink = links.find((l) => l.id === selectedLinkId);
+  const selectedLinkInfo = useMemo(() => {
+    if (!selectedLink) return null;
+    const devA = devices.find((d) => d.id === selectedLink.fromDevice);
+    const devB = devices.find((d) => d.id === selectedLink.toDevice);
     if (!devA || !devB) return null;
-
-    const cAx = devA.x + 40;
-    const cAy = devA.y + 40;
-    const cBx = devB.x + 40;
-    const cBy = devB.y + 40;
-
-    const dx = cBx - cAx;
-    const dy = cBy - cAy;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const ux = dx / dist;
-    const uy = dy / dist;
-
-    // Cable line starts at Card A outer border (38px offset) and ends at Card B outer border (38px offset)
-    const lineX1 = cAx + ux * 38;
-    const lineY1 = cAy + uy * 38;
-    const lineX2 = cBx - ux * 38;
-    const lineY2 = cBy - uy * 38;
-
-    // Port LED positions: strictly 48px from device center along unit vector (always 10px outside card)
-    const ledAx = cAx + ux * 48;
-    const ledAy = cAy + uy * 48;
-    const ledBx = cBx - ux * 48;
-    const ledBy = cBy - uy * 48;
-
-    // Port Labels: positioned 12px above or beside LED
-    const labelAx = ledAx - uy * 12;
-    const labelAy = ledAy + ux * 12;
-    const labelBx = ledBx - uy * 12;
-    const labelBy = ledBy + ux * 12;
-
-    // STP status check
-    const stpA = stpState.ports[`${devA.id}:${link.fromPort}`];
-    const stpB = stpState.ports[`${devB.id}:${link.toPort}`];
-    const isStpBlocked = stpA?.state === 'BLK' || stpB?.state === 'BLK';
-
-    // Cable validation check
-    const cableVal = validateCabling(devA, link.fromPort, devB, link.toPort, link.cable);
-    const isMismatch = !cableVal.valid;
-
-    // Interface status & Link physical state
-    const ifaceA = devA.config.interfaces[link.fromPort];
-    const ifaceB = devB.config.interfaces[link.toPort];
-
+    const ifaceA = devA.config.interfaces[selectedLink.fromPort];
+    const ifaceB = devB.config.interfaces[selectedLink.toPort];
     const isDownA = !ifaceA || ifaceA.status === 'down';
     const isDownB = !ifaceB || ifaceB.status === 'down';
     const isLinkDown = isDownA || isDownB;
 
-    // Check IP subnet mismatch on routed interfaces
-    const hasIpA = Boolean(ifaceA?.ip && ifaceA?.mask);
-    const hasIpB = Boolean(ifaceB?.ip && ifaceB?.mask);
+    const stpA = stpState.ports[`${devA.id}:${selectedLink.fromPort}`];
+    const stpB = stpState.ports[`${devB.id}:${selectedLink.toPort}`];
+    const isStpBlocked = stpA?.state === 'BLK' || stpB?.state === 'BLK';
+    const cableVal = validateCabling(devA, selectedLink.fromPort, devB, selectedLink.toPort, selectedLink.cable);
+    const isMismatch = !cableVal.valid;
     const isIpMismatch =
-      hasIpA &&
-      hasIpB &&
+      Boolean(ifaceA?.ip && ifaceA?.mask && ifaceB?.ip && ifaceB?.mask) &&
       !areSameSubnet(ifaceA!.ip!, ifaceB!.ip!, ifaceA!.mask || '255.255.255.0');
 
-    // Real-Time Port LED Color Calculation
-    // 🟢 Green = Operational / Forwarding
-    // 🟠 Amber = STP Blocked / Negotiating / Cable Mismatch / IP Mismatch
-    // 🔴 Red = Interface Shutdown (Admin Down) / Physical Link Down
-    const getLedColor = (isThisDown: boolean, isOtherDown: boolean, stpInfo: any) => {
-      if (isThisDown || isOtherDown) return '#ef4444'; // Red (Admin Down or Physical Carrier Loss)
-      if (isMismatch) return '#f59e0b'; // Amber (Cable Mismatch)
-      if (isIpMismatch) return '#f59e0b'; // Amber (Subnet IP Mismatch)
-      if (stpInfo?.state === 'BLK') return '#f59e0b'; // Amber (STP Blocked)
-      if (stpInfo?.state === 'LIS' || stpInfo?.state === 'LRN') return '#f59e0b'; // Amber (STP Listening/Learning)
-      return '#10b981'; // Emerald Green (Up / Forwarding)
-    };
-
-    const ledColorA = getLedColor(isDownA, isDownB, stpA);
-    const ledColorB = getLedColor(isDownB, isDownA, stpB);
-
-    // Cable stroke styling
-    let strokeColor = '#64748b'; // default slate
-    let strokeDash = 'none';
-
-    if (isLinkDown) {
-      strokeColor = '#ef4444'; // Red for Down / Broken Connection
-      strokeDash = '6,4'; // Dashed line to emphasize outage
-    } else if (isMismatch || isIpMismatch) {
-      strokeColor = '#f59e0b'; // Amber for Cable or IP Mismatch
-      strokeDash = '6,3';
-    } else if (isStpBlocked) {
-      strokeColor = '#eab308'; // Amber for STP Blocked wire
-      strokeDash = '5,4';
-    } else if (link.cable === 'crossover') {
-      strokeColor = '#eab308'; // yellow/amber dashed for crossover
-      strokeDash = '6,4';
-    } else if (link.cable === 'serial' || link.cable === 'serial_dte') {
-      strokeColor = link.cable === 'serial' ? '#ec4899' : '#f43f5e'; // pink/rose for serial WAN
-      strokeDash = '8,3';
-    } else if (link.cable === 'fiber') {
-      strokeColor = '#06b6d4'; // cyan for fiber optic
-    } else if (link.cable === 'dac') {
-      strokeColor = '#a855f7'; // purple for 10G/40G DAC Twinax
-    } else if (link.cable === 'rollover') {
-      strokeColor = '#38bdf8'; // light blue dashed console
-      strokeDash = '3,3';
-    } else if (link.cable === 'coaxial') {
-      strokeColor = '#94a3b8'; // slate coaxial
-    } else if (link.cable === 'phone') {
-      strokeColor = '#10b981'; // emerald telephone line
-    } else if (link.cable === 'usb') {
-      strokeColor = '#6366f1'; // indigo USB console
-    } else {
-      strokeColor = '#3b82f6'; // blue for straight-through
-    }
-
-    if (link.id === selectedLinkId) {
-      strokeColor = isLinkDown ? '#f87171' : '#38bdf8'; // bright highlight when selected
-    }
-
-    // Check if current simulation packet is traveling along this link
-    const isSimulatingOnThisLink =
-      currentSimStep &&
-      ((currentSimStep.fromDeviceId === devA.id && currentSimStep.toDeviceId === devB.id) ||
-        (currentSimStep.fromDeviceId === devB.id && currentSimStep.toDeviceId === devA.id));
-
     return {
-      link,
+      link: selectedLink,
       devA,
       devB,
       ifaceA,
       ifaceB,
-      lineX1,
-      lineY1,
-      lineX2,
-      lineY2,
-      ledAx,
-      ledAy,
-      ledBx,
-      ledBy,
-      labelAx,
-      labelAy,
-      labelBx,
-      labelBy,
-      ledColorA,
-      ledColorB,
-      strokeColor,
-      strokeDash,
-      isLinkDown,
       isDownA,
       isDownB,
-      isIpMismatch,
+      isLinkDown,
       isStpBlocked,
       isMismatch,
+      isIpMismatch,
       cableValMessage: cableVal.message,
-      isSimulatingOnThisLink,
-      midX: (cAx + cBx) / 2,
-      midY: (cAy + cBy) / 2,
+      midX: (devA.x + devB.x + 80) / 2,
+      midY: (devA.y + devB.y + 80) / 2,
     };
-  });
+  }, [selectedLink, devices, stpState]);
 
-  const selectedLinkInfo = renderedLinks.find((rl) => rl?.link.id === selectedLinkId);
+  // Memoized link health counter
+  const linkHealthCounts = useMemo(() => {
+    let up = 0;
+    let warn = 0;
+    let down = 0;
+
+    for (const link of links) {
+      const devA = devices.find((d) => d.id === link.fromDevice);
+      const devB = devices.find((d) => d.id === link.toDevice);
+      if (!devA || !devB) continue;
+
+      const ifaceA = devA.config.interfaces[link.fromPort];
+      const ifaceB = devB.config.interfaces[link.toPort];
+      const isDownA = !ifaceA || ifaceA.status === 'down';
+      const isDownB = !ifaceB || ifaceB.status === 'down';
+      const isLinkDown = isDownA || isDownB;
+
+      if (isLinkDown) {
+        down++;
+        continue;
+      }
+
+      const stpA = stpState.ports[`${devA.id}:${link.fromPort}`];
+      const stpB = stpState.ports[`${devB.id}:${link.toPort}`];
+      const isStpBlocked = stpA?.state === 'BLK' || stpB?.state === 'BLK';
+      const cableVal = validateCabling(devA, link.fromPort, devB, link.toPort, link.cable);
+      const isMismatch = !cableVal.valid;
+      const isIpMismatch =
+        Boolean(ifaceA?.ip && ifaceA?.mask && ifaceB?.ip && ifaceB?.mask) &&
+        !areSameSubnet(ifaceA!.ip!, ifaceB!.ip!, ifaceA!.mask || '255.255.255.0');
+
+      if (isStpBlocked || isMismatch || isIpMismatch) {
+        warn++;
+      } else {
+        up++;
+      }
+    }
+
+    return { up, warn, down };
+  }, [links, devices, stpState]);
 
   // Calculate rubber band line if cabling source is set
   let rubberBand: { x1: number; y1: number; x2: number; y2: number } | null = null;
@@ -498,259 +421,17 @@ export const Canvas: React.FC<CanvasProps> = ({
           </filter>
         </defs>
 
-        {/* Cable Lines */}
-        {renderedLinks.map((rl) => {
-          if (!rl) return null;
-          return (
-            <g key={rl.link.id} className="pointer-events-auto">
-              {/* Invisible thicker stroke for easy clicking/selecting */}
-              <line
-                x1={rl.lineX1}
-                y1={rl.lineY1}
-                x2={rl.lineX2}
-                y2={rl.lineY2}
-                stroke="transparent"
-                strokeWidth={14}
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectLink(rl.link.id);
-                  onSelectDevice(null);
-                }}
-              />
-
-              {/* Visible Cable wire */}
-              <line
-                x1={rl.lineX1}
-                y1={rl.lineY1}
-                x2={rl.lineX2}
-                y2={rl.lineY2}
-                stroke={rl.strokeColor}
-                strokeWidth={rl.link.id === selectedLinkId ? 3.5 : 2.5}
-                strokeDasharray={rl.strokeDash}
-                strokeLinecap="round"
-                filter={rl.link.id === selectedLinkId ? 'url(#glow)' : undefined}
-                className="cursor-pointer transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectLink(rl.link.id);
-                  onSelectDevice(null);
-                }}
-              />
-
-              {/* Port A Status LED (10-12px outside card) */}
-              <circle
-                cx={rl.ledAx}
-                cy={rl.ledAy}
-                r={4.5}
-                fill={rl.ledColorA}
-                stroke="#090d16"
-                strokeWidth={1.5}
-              />
-              {/* Port A Name Label */}
-              <text
-                x={rl.labelAx}
-                y={rl.labelAy}
-                fill="#94a3b8"
-                fontSize={9}
-                fontFamily="JetBrains Mono, monospace"
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="pointer-events-none select-none font-semibold bg-slate-900"
-              >
-                {rl.link.fromPort}
-              </text>
-
-              {/* Port B Status LED */}
-              <circle
-                cx={rl.ledBx}
-                cy={rl.ledBy}
-                r={4.5}
-                fill={rl.ledColorB}
-                stroke="#090d16"
-                strokeWidth={1.5}
-              />
-              {/* Port B Name Label */}
-              <text
-                x={rl.labelBx}
-                y={rl.labelBy}
-                fill="#94a3b8"
-                fontSize={9}
-                fontFamily="JetBrains Mono, monospace"
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="pointer-events-none select-none font-semibold bg-slate-900"
-              >
-                {rl.link.toPort}
-              </text>
-
-              {/* Real-time Status Badges */}
-              {/* 1. LINK DOWN Badge (Red - Admin Down or Carrier Loss) */}
-              {rl.isLinkDown && (
-                <g transform={`translate(${rl.midX}, ${rl.midY})`}>
-                  <rect
-                    x={-42}
-                    y={-11}
-                    width={84}
-                    height={22}
-                    rx={11}
-                    fill="#450a0a"
-                    stroke="#ef4444"
-                    strokeWidth={1.5}
-                  />
-                  <text
-                    x={0}
-                    y={3.5}
-                    fill="#fca5a5"
-                    fontSize={9}
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    className="select-none font-mono tracking-tight"
-                  >
-                    LINK DOWN
-                  </text>
-                </g>
-              )}
-
-              {/* 2. STP BLK Badge (Amber - Spanning Tree Blocked) */}
-              {!rl.isLinkDown && rl.isStpBlocked && (
-                <g transform={`translate(${rl.midX}, ${rl.midY})`}>
-                  <rect
-                    x={-34}
-                    y={-10}
-                    width={68}
-                    height={20}
-                    rx={10}
-                    fill="#1e1b4b"
-                    stroke="#f59e0b"
-                    strokeWidth={1.5}
-                  />
-                  <text
-                    x={0}
-                    y={3}
-                    fill="#f59e0b"
-                    fontSize={10}
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    className="select-none font-mono"
-                  >
-                    STP BLK
-                  </text>
-                </g>
-              )}
-
-              {/* 3. Cable Mismatch Badge (Orange) */}
-              {!rl.isLinkDown && !rl.isStpBlocked && rl.isMismatch && (
-                <g transform={`translate(${rl.midX}, ${rl.midY})`}>
-                  <rect
-                    x={-42}
-                    y={-10}
-                    width={84}
-                    height={20}
-                    rx={10}
-                    fill="#451a03"
-                    stroke="#f97316"
-                    strokeWidth={1.5}
-                  />
-                  <text
-                    x={0}
-                    y={3}
-                    fill="#fb923c"
-                    fontSize={9}
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    className="select-none font-mono"
-                  >
-                    MISMATCH
-                  </text>
-                </g>
-              )}
-
-              {/* 4. IP Subnet Mismatch Badge (Amber) */}
-              {!rl.isLinkDown && !rl.isStpBlocked && !rl.isMismatch && rl.isIpMismatch && (
-                <g transform={`translate(${rl.midX}, ${rl.midY})`}>
-                  <rect
-                    x={-46}
-                    y={-10}
-                    width={92}
-                    height={20}
-                    rx={10}
-                    fill="#451a03"
-                    stroke="#f59e0b"
-                    strokeWidth={1.5}
-                  />
-                  <text
-                    x={0}
-                    y={3}
-                    fill="#fde047"
-                    fontSize={8.5}
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    className="select-none font-mono"
-                  >
-                    IP MISMATCH
-                  </text>
-                </g>
-              )}
-
-              {/* Animated Simulation Packet Travelling on Wire */}
-              {rl.isSimulatingOnThisLink && (
-                currentSimStep?.status === 'drop' ? (
-                  <g transform={`translate(${rl.midX}, ${rl.midY})`}>
-                    <circle
-                      r={14}
-                      fill="#ef4444"
-                      fillOpacity={0.25}
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      className="animate-ping"
-                    />
-                    <circle r={9} fill="#ef4444" stroke="#ffffff" strokeWidth={2} />
-                    <text
-                      x={0}
-                      y={3.5}
-                      fill="#ffffff"
-                      fontSize={11}
-                      fontWeight="bold"
-                      textAnchor="middle"
-                      className="select-none font-mono"
-                    >
-                      ✕
-                    </text>
-                  </g>
-                ) : (
-                  <circle
-                    r={6}
-                    fill="#38bdf8"
-                    stroke="#ffffff"
-                    strokeWidth={2}
-                    filter="url(#glow)"
-                  >
-                    <animateMotion
-                      path={`M ${rl.lineX1} ${rl.lineY1} L ${rl.lineX2} ${rl.lineY2}`}
-                      dur="0.8s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                )
-              )}
-            </g>
-          );
-        })}
-
-        {/* Rubber-band cabling wire */}
-        {rubberBand && (
-          <line
-            x1={rubberBand.x1}
-            y1={rubberBand.y1}
-            x2={rubberBand.x2}
-            y2={rubberBand.y2}
-            stroke="#38bdf8"
-            strokeWidth={2}
-            strokeDasharray="4,4"
-            className="animate-pulse"
-          />
-        )}
+        {/* Cable Lines & Rubber-band Cabling Layer */}
+        <CanvasLinksOverlay
+          devices={devices}
+          links={links}
+          selectedLinkId={selectedLinkId}
+          stpState={stpState}
+          currentSimStep={currentSimStep}
+          rubberBand={rubberBand}
+          onSelectLink={onSelectLink}
+          onSelectDevice={onSelectDevice}
+        />
       </svg>
 
       {/* HTML Layer for Device Cards */}
@@ -875,15 +556,25 @@ export const Canvas: React.FC<CanvasProps> = ({
       </div>
 
       {/* Port Selection Popover (when Cabling) */}
-      {portPickerDevice && (
-        <div
-          className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 min-w-[200px]"
-          style={{
-            left: `${portPickerPos.x * zoom + pan.x}px`,
-            top: `${portPickerPos.y * zoom + pan.y}px`,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
+      {portPickerDevice && (() => {
+        const popoverWidth = 220;
+        const popoverHeight = 280;
+        const containerW = containerRef.current?.clientWidth || window.innerWidth;
+        const containerH = containerRef.current?.clientHeight || window.innerHeight;
+        const rawLeft = portPickerPos.x * zoom + pan.x;
+        const rawTop = portPickerPos.y * zoom + pan.y;
+        const clampedLeft = Math.max(16, Math.min(rawLeft, containerW - popoverWidth - 16));
+        const clampedTop = Math.max(16, Math.min(rawTop, containerH - popoverHeight - 16));
+
+        return (
+          <div
+            className="absolute z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 min-w-[200px]"
+            style={{
+              left: `${clampedLeft}px`,
+              top: `${clampedTop}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
             <div>
               <div className="text-xs font-bold text-slate-200">
@@ -921,22 +612,23 @@ export const Canvas: React.FC<CanvasProps> = ({
             ))}
           </div>
         </div>
-      )}
+      );
+    })()}
 
       {/* Active Cabling Mode Notification Banner */}
       {activeCableType && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 border border-sky-500/50 backdrop-blur px-4 py-2 rounded-full shadow-2xl flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-slate-950/90 border border-sky-500/40 backdrop-blur-xl px-3 py-1.5 rounded-lg shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-top-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
           <span className="text-xs font-medium text-slate-200">
             {cableSource
               ? `Connecting ${cableSource.port} to target device...`
-              : `Select source device to attach ${activeCableType} cable`}
+              : `Select port on source device to attach ${activeCableType} cable`}
           </span>
           <button
             onClick={onCancelCabling}
-            className="text-xs font-semibold text-rose-400 hover:text-rose-300 ml-2 cursor-pointer"
+            className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 ml-1.5 cursor-pointer px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition-colors"
           >
-            Cancel
+            Cancel (Esc)
           </button>
         </div>
       )}
@@ -1059,35 +751,35 @@ export const Canvas: React.FC<CanvasProps> = ({
       {/* Empty Canvas Guidance Watermark */}
       {devices.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-center mb-3.5 shadow-xl backdrop-blur-sm">
-            <Network className="w-8 h-8 text-sky-400/80" />
+          <div className="w-14 h-14 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-center mb-3 shadow-xl backdrop-blur-sm">
+            <Network className="w-7 h-7 text-sky-400/70" />
           </div>
-          <h2 className="text-base font-semibold text-slate-200 mb-1 tracking-tight">
+          <h2 className="text-sm font-semibold text-slate-200 mb-1 tracking-tight">
             Empty Workspace Canvas
           </h2>
-          <p className="text-xs text-slate-400 max-w-sm mb-4">
-            Select devices in the left sidebar to add routers, switches, and PCs, or click <span className="text-sky-400 font-medium">Presets</span> in the top bar to load a topology.
+          <p className="text-xs text-slate-400 max-w-sm mb-3.5">
+            Select devices in the left sidebar to add hardware, or click <span className="text-sky-400 font-medium">Presets</span> in the top bar to load a topology.
           </p>
           <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500">
-            <span className="px-2 py-0.5 rounded bg-slate-900/70 border border-slate-800">Scroll wheel to Zoom in/out</span>
-            <span>•</span>
-            <span className="px-2 py-0.5 rounded bg-slate-900/70 border border-slate-800">Drag or Middle-click to Pan</span>
+            <span className="px-2 py-0.5 rounded bg-white/[0.03] border border-white/5">Mouse Wheel: Zoom</span>
+            <span>·</span>
+            <span className="px-2 py-0.5 rounded bg-white/[0.03] border border-white/5">Drag Canvas: Pan</span>
           </div>
         </div>
       )}
 
-      {/* Real-Time Link & Connection Health Indicator HUD Legend */}
+      {/* Real-Time Link & Connection Health Indicator HUD */}
       {links.length > 0 && (
-        <div className="absolute bottom-4 left-4 z-40 select-none">
-          <div className="bg-slate-900/95 border border-slate-800/90 backdrop-blur-md rounded-xl p-2.5 shadow-2xl space-y-1.5 text-xs max-w-xs">
+        <div className="absolute bottom-2.5 left-2.5 z-30 select-none">
+          <div className="bg-slate-950/90 border border-white/10 backdrop-blur-xl rounded-lg px-2.5 py-1.5 shadow-xl space-y-1 text-xs max-w-xs">
             <div
               className="flex items-center justify-between gap-3 cursor-pointer"
               onClick={() => setShowHealthLegend(!showHealthLegend)}
             >
               <div className="flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-sky-400" />
-                <span className="font-semibold text-slate-200 text-[11px]">
-                  Real-Time Link Health
+                <span className="font-medium text-slate-300 text-[11px]">
+                  Link Health
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] font-mono">
@@ -1095,33 +787,24 @@ export const Canvas: React.FC<CanvasProps> = ({
                   className="flex items-center gap-1 text-emerald-400 px-1 py-0.2 rounded bg-emerald-950/40 border border-emerald-900/40"
                   title="Operational Links (Up & Forwarding)"
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  {links.filter((l) => {
-                    const rl = renderedLinks.find((r) => r?.link.id === l.id);
-                    return rl && !rl.isLinkDown && !rl.isStpBlocked && !rl.isMismatch;
-                  }).length}
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {linkHealthCounts.up}
                 </span>
                 <span
                   className="flex items-center gap-1 text-amber-400 px-1 py-0.2 rounded bg-amber-950/40 border border-amber-900/40"
                   title="Blocked / Warning Links"
                 >
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  {links.filter((l) => {
-                    const rl = renderedLinks.find((r) => r?.link.id === l.id);
-                    return rl && !rl.isLinkDown && (rl.isStpBlocked || rl.isMismatch || rl.isIpMismatch);
-                  }).length}
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  {linkHealthCounts.warn}
                 </span>
                 <span
                   className="flex items-center gap-1 text-rose-400 px-1 py-0.2 rounded bg-rose-950/40 border border-rose-900/40"
                   title="Down / Failed Links"
                 >
-                  <span className="w-2 h-2 rounded-full bg-rose-400" />
-                  {links.filter((l) => {
-                    const rl = renderedLinks.find((r) => r?.link.id === l.id);
-                    return rl?.isLinkDown;
-                  }).length}
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  {linkHealthCounts.down}
                 </span>
-                <span className="text-[10px] text-slate-500 font-sans ml-1">
+                <span className="text-[10px] text-slate-500 font-sans ml-0.5">
                   {showHealthLegend ? '▾' : '▸'}
                 </span>
               </div>
@@ -1129,27 +812,24 @@ export const Canvas: React.FC<CanvasProps> = ({
 
             {/* Expanded Health Color Legend */}
             {showHealthLegend && (
-              <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[10px] text-slate-300">
-                <div className="flex items-start gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 mt-0.5 shadow-sm shadow-emerald-500/50" />
+              <div className="pt-1.5 border-t border-white/5 space-y-1 text-[10px] text-slate-300">
+                <div className="flex items-start gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-emerald-400">Green:</strong> Link Up, Operational & STP Forwarding (Reachable)
+                    <strong className="text-emerald-400">Green:</strong> Up & STP Forwarding
                   </span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 mt-0.5 shadow-sm shadow-amber-400/50" />
+                <div className="flex items-start gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-amber-400">Amber:</strong> STP Blocked (Loop Prevention), Cable Mismatch, or Subnet IP Mismatch
+                    <strong className="text-amber-400">Amber:</strong> STP Blocked / Mismatch
                   </span>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 mt-0.5 shadow-sm shadow-rose-500/50 animate-pulse" />
+                <div className="flex items-start gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-0.5 animate-pulse" />
                   <span>
-                    <strong className="text-rose-400">Red:</strong> Link Down, Interface Shutdown (`admin down`), or Broken Carrier
+                    <strong className="text-rose-400">Red:</strong> Down / Shutdown
                   </span>
-                </div>
-                <div className="text-[9px] text-slate-400 italic pt-1 border-t border-slate-800/50">
-                  Tip: Click any link wire to simulate break / restore link or execute `shutdown` / `no shutdown` in CLI.
                 </div>
               </div>
             )}
@@ -1157,35 +837,36 @@ export const Canvas: React.FC<CanvasProps> = ({
         </div>
       )}
 
-      {/* Zoom / Viewport HUD Controls */}
-      <div className="absolute bottom-16 right-4 z-40 bg-slate-900/90 border border-slate-800 backdrop-blur rounded-xl p-1.5 shadow-xl flex flex-col items-center gap-1 text-slate-300">
+      {/* Zoom / Viewport HUD Controls - Sleek Horizontal Glass Bar */}
+      <div className="absolute bottom-2.5 right-2.5 z-30 bg-slate-950/90 border border-white/10 backdrop-blur-xl rounded-lg px-1.5 py-1 shadow-xl flex items-center gap-1 text-slate-300">
         <button
-          title="Zoom In (Scroll Wheel Up)"
-          onClick={() => setZoom((z) => Math.min(3.0, +(z + 0.15).toFixed(2)))}
-          className="p-1.5 hover:bg-slate-800 hover:text-white rounded-lg text-sm font-bold cursor-pointer"
+          title="Zoom Out (Scroll Down)"
+          onClick={() => setZoom((z) => Math.max(0.2, +(z - 0.15).toFixed(2)))}
+          className="p-1 hover:bg-white/5 hover:text-white rounded text-xs font-bold cursor-pointer transition-colors"
         >
-          +
+          -
         </button>
         <span
-          title="Current Zoom • Scroll wheel to Zoom in/out"
-          className="text-[10px] font-mono px-1 select-none"
+          title="Current Zoom"
+          className="text-[11px] font-mono px-1 select-none text-slate-400"
         >
           {Math.round(zoom * 100)}%
         </span>
         <button
-          title="Zoom Out (Scroll Wheel Down)"
-          onClick={() => setZoom((z) => Math.max(0.2, +(z - 0.15).toFixed(2)))}
-          className="p-1.5 hover:bg-slate-800 hover:text-white rounded-lg text-sm font-bold cursor-pointer"
+          title="Zoom In (Scroll Up)"
+          onClick={() => setZoom((z) => Math.min(3.0, +(z + 0.15).toFixed(2)))}
+          className="p-1 hover:bg-white/5 hover:text-white rounded text-xs font-bold cursor-pointer transition-colors"
         >
-          -
+          +
         </button>
+        <div className="w-[1px] h-3.5 bg-white/10 mx-0.5" />
         <button
           title="Reset Zoom to 100%"
           onClick={() => {
             setZoom(1);
             setPan({ x: 0, y: 0 });
           }}
-          className="p-1.5 hover:bg-slate-800 hover:text-white rounded-lg text-[10px] font-mono uppercase cursor-pointer"
+          className="px-1.5 py-0.5 hover:bg-white/5 hover:text-white rounded text-[10px] font-mono cursor-pointer transition-colors"
         >
           1:1
         </button>

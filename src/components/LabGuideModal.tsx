@@ -8,6 +8,10 @@ import {
   XCircle,
   RotateCcw,
   Award,
+  Code,
+  Copy,
+  Check,
+  HelpCircle,
 } from 'lucide-react';
 
 interface LabGuideModalProps {
@@ -24,6 +28,8 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
   onClose,
 }) => {
   const [selectedLabId, setSelectedLabId] = useState<string>(LAB_SCENARIOS[0].id);
+  const [showSolution, setShowSolution] = useState<boolean>(false);
+  const [copiedDevice, setCopiedDevice] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<{
     passed: boolean;
     score: number;
@@ -48,7 +54,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 select-none">
       <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
         {/* Header */}
-        <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
               <BookOpen className="w-4 h-4" />
@@ -64,7 +70,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -73,7 +79,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
         {/* Content: 2-Column Split */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Column: Labs List */}
-          <div className="w-72 border-r border-slate-800 bg-slate-950/60 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
+          <div className="w-72 border-r border-slate-800 bg-slate-950/60 overflow-y-auto p-2.5 space-y-1.5 custom-scrollbar">
             {LAB_SCENARIOS.map((l, index) => {
               const isSelected = l.id === lab.id;
               return (
@@ -119,9 +125,9 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
           </div>
 
           {/* Right Column: Lab Detail & Instructions */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar bg-slate-900">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 custom-scrollbar bg-slate-900">
             {/* Header / Info */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                   {lab.category}
@@ -130,7 +136,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
                   {lab.difficulty}
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
+              <h2 className="text-base font-bold text-white tracking-tight">
                 {lab.title}
               </h2>
               <p className="text-xs text-slate-300 leading-relaxed">
@@ -139,7 +145,7 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
             </div>
 
             {/* Objective Banner */}
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">
                 Core Objective
               </span>
@@ -149,10 +155,10 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
             </div>
 
             {/* Action Bar: Load Lab Topology & Verify */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={handleLoadLab}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Load Initial Topology
@@ -167,35 +173,126 @@ export const LabGuideModal: React.FC<LabGuideModalProps> = ({
               </button>
             </div>
 
-            {/* Step-by-Step Instructions */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Step-by-Step Instructions
-              </span>
-              <div className="space-y-2">
-                {lab.instructions.map((inst, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-start gap-3"
-                  >
-                    <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="text-xs text-slate-200 leading-relaxed font-mono">
-                      {inst}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            {/* View Mode Toggle: Instructions vs Solution Cheat-Sheet */}
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+              <button
+                onClick={() => setShowSolution(false)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  !showSolution
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                Instructions & Tasks
+              </button>
+              <button
+                onClick={() => setShowSolution(true)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  showSolution
+                    ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                Solution & CLI Commands
+              </button>
             </div>
 
-            {/* Helpful Tips */}
-            {lab.tips && lab.tips.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-200/90 text-xs space-y-1">
-                <span className="font-bold block">💡 CCNA Exam Tip:</span>
-                {lab.tips.map((t, idx) => (
-                  <div key={idx}>• {t}</div>
-                ))}
+            {!showSolution ? (
+              <>
+                {/* Step-by-Step Instructions */}
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Step-by-Step Instructions
+                  </span>
+                  <div className="space-y-2">
+                    {lab.instructions.map((inst, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-start gap-3"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs text-slate-200 leading-relaxed font-mono">
+                          {inst}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Helpful Tips */}
+                {lab.tips && lab.tips.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-200/90 text-xs space-y-1">
+                    <span className="font-bold block">💡 CCNA Exam Tip:</span>
+                    {lab.tips.map((t, idx) => (
+                      <div key={idx}>• {t}</div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-4">
+                {/* Hints */}
+                {lab.solutionHints && lab.solutionHints.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs space-y-1.5">
+                    <span className="font-bold flex items-center gap-1.5 text-amber-300">
+                      <HelpCircle className="w-3.5 h-3.5" /> Configuration Strategy Hints:
+                    </span>
+                    {lab.solutionHints.map((hint, idx) => (
+                      <div key={idx} className="text-slate-300">• {hint}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Device Commands */}
+                {lab.solutionCommands ? (
+                  <div className="space-y-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Target Device Commands & Settings
+                    </span>
+                    {Object.entries(lab.solutionCommands).map(([deviceKey, cmds]) => (
+                      <div
+                        key={deviceKey}
+                        className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden"
+                      >
+                        <div className="px-3.5 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                          <span className="text-xs font-bold font-mono text-indigo-400">
+                            {deviceKey}
+                          </span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(cmds.join('\n'));
+                              setCopiedDevice(deviceKey);
+                              setTimeout(() => setCopiedDevice(null), 1500);
+                            }}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            {copiedDevice === deviceKey ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <pre className="p-3 text-[11px] font-mono text-emerald-300/90 overflow-x-auto whitespace-pre leading-relaxed select-text">
+                          {cmds.join('\n')}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 text-center text-xs text-slate-400">
+                    No explicit solution commands defined for this scenario.
+                  </div>
+                )}
               </div>
             )}
 

@@ -65,10 +65,13 @@ export function calculateStp(devices: Device[], links: Link[], targetVlan = 1): 
     }
   }
 
-  // Cost per interface speed: Fa=19, Gi=4, 10G=2
+  // Cost per interface speed: Fa=19, Gi=4, 10G=2, with strict override by iface.stpCost
   const getPortCost = (dev: Device, portName: string): number => {
     const iface = dev.config.interfaces[portName];
     if (!iface) return 19;
+    if (typeof iface.stpCost === 'number' && iface.stpCost > 0) {
+      return iface.stpCost;
+    }
     return iface.speed === 1000 ? 4 : iface.speed === 10000 ? 2 : 19;
   };
 

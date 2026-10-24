@@ -3,246 +3,21 @@ import {
   Link,
   SimulationStep,
   DeviceInterface,
-  AccessList,
 } from '../types/network';
-import { areSameSubnet, getNetworkAddress, ipToInt, safeCidr } from '../utils/ipUtils';
-import { calculatePvst, getStpPortState } from './stpEngine';
-import { computeOspf, isOspfCapable, OspfRoute, OspfState, OSPF_AD } from './ospfEngine';
-import { computeEigrpNetworkState, EigrpComputedRoute } from './protocols/eigrpEngine';
+import { areSameSubnet, getNetworkAddress } from '../utils/ipUtils';
+import { calculatePvst } from './stpEngine';
+import { computeOspf } from './ospfEngine';
+import { computeEigrpNetworkState } from './protocols/eigrpEngine';
 import { resolveHsrpGateway } from './protocols/hsrpEngine';
 import { computeMplsNetworkState } from './protocols/mplsEngine';
-import { matchIpsecCryptoMap } from './protocols/ipsecEngine';
-import { matchVxlanOverlay } from './protocols/vxlanEngine';
-import { computeIsisNetworkState, IsisRoute } from './protocols/isisEngine';
+import { computeIsisNetworkState } from './protocols/isisEngine';
+import { checkAcl, lookupRoute, type RouteMatch } from './simulation/routeLookup';
+import { findL2L3ForwardPath } from './simulation/forwardPathFinder';
+import { simulateDhcp } from './simulation/serviceSimulators';
 
-interface RouteMatch {
-  type: 'connected' | 'static' | 'ospf' | 'eigrp' | 'rip' | 'bgp' | 'isis' | 'default';
-  outInterface: string;
-  subInterface?: string;
-  nextHopIp: string;
-  /** Administrative distance. */
-  metric: number;
-  /** Prefix length; routers pick the longest prefix first, AD only breaks ties. */
-  prefixLen: number;
-  /** Protocol cost, used as the final tie-breaker. */
-  cost?: number;
-}
-
-const wildcardToPrefixLen = (wildcard: string): number => {
-  const mask = (~ipToInt(wildcard)) >>> 0;
-  let n = 0;
-  for (let i = 31; i >= 0 && (mask >>> i) & 1; i--) n++;
-  return n;
-};
-
-// Helper to evaluate ACL against an ICMP/IP packet
-function checkAcl(
-  acl: AccessList | undefined,
-  srcIp: string,
-  dstIp: string,
-  protocol: 'icmp' | 'ip' | 'tcp' | 'udp' = 'icmp'
-): { permitted: boolean; matchedRule?: string } {
-  if (!acl || !acl.rules || acl.rules.length === 0) {
-    return { permitted: true };
-  }
-
-  for (const rule of acl.rules) {
-    // Protocol match
-    if (rule.protocol && rule.protocol !== 'ip' && rule.protocol !== protocol) {
-      continue;
-    }
-
-    // Source IP match
-    let srcMatch = false;
-    if (rule.source === 'any') {
-      srcMatch = true;
-    } else if (rule.source.startsWith('host ')) {
-      srcMatch = rule.source.replace('host ', '').trim() === srcIp;
-    } else {
-      const parts = rule.source.trim().split(/\s+/);
-      if (parts.length === 2) {
-        const [net, wildcard] = parts;
-        const maskInt = (~ipToInt(wildcard)) >>> 0;
-        const netInt = ipToInt(net);
-        const hostInt = ipToInt(srcIp);
-        srcMatch = (hostInt & maskInt) === (netInt & maskInt);
-      } else if (rule.source === srcIp) {
-        srcMatch = true;
-      }
-    }
-
-    // Destination IP match (for extended ACLs)
-    let dstMatch = true;
-    if (rule.destination) {
-      if (rule.destination === 'any') {
-        dstMatch = true;
-      } else if (rule.destination.startsWith('host ')) {
-        dstMatch = rule.destination.replace('host ', '').trim() === dstIp;
-      } else {
-        const parts = rule.destination.trim().split(/\s+/);
-        if (parts.length === 2) {
-          const [net, wildcard] = parts;
-          const maskInt = (~ipToInt(wildcard)) >>> 0;
-          const netInt = ipToInt(net);
-          const hostInt = ipToInt(dstIp);
-          dstMatch = (hostInt & maskInt) === (netInt & maskInt);
-        } else if (rule.destination === dstIp) {
-          dstMatch = true;
-        }
-      }
-    }
-
-    if (srcMatch && dstMatch) {
-      rule.matchCount = (rule.matchCount || 0) + 1;
-      return {
-        permitted: rule.action === 'permit',
-        matchedRule: `${rule.action.toUpperCase()} ${rule.protocol || 'ip'} ${rule.source} ${rule.destination || ''}`.trim(),
-      };
-    }
-  }
-
-  // Implicit deny at the end of ACL
-  return { permitted: false, matchedRule: 'Implicit Deny All' };
-}
-
-// Helper to look up best route on router or L3 switch.
-// Order of selection follows real routers: longest prefix match, then lowest AD, then lowest cost.
-export function lookupRoute(
-  dev: Device,
-  dstIp: string,
-  ospfRoutes: OspfRoute[] = [],
-  isisRoutes: IsisRoute[] = [],
-  eigrpRoutes: EigrpComputedRoute[] = []
-): RouteMatch | null {
-  // 1. Strict boundary validation
-  if (!dev || !dev.config || !dev.config.interfaces || !dstIp || typeof dstIp !== 'string') {
-    return null;
-  }
-
-  const candidates: RouteMatch[] = [];
-
-  // 1. Directly connected interfaces and sub-interfaces
-  for (const [ifName, iface] of Object.entries(dev.config.interfaces)) {
-    if (iface && iface.ip && iface.mask && iface.status === 'up') {
-      if (areSameSubnet(iface.ip, dstIp, iface.mask)) {
-        candidates.push({
-          type: 'connected',
-          outInterface: ifName.split('.')[0],
-          subInterface: ifName.includes('.') ? ifName : undefined,
-          nextHopIp: dstIp,
-          metric: 0,
-          prefixLen: safeCidr(iface.mask),
-        });
-      }
-    }
-  }
-
-  // 2. Static routes (nullish coalescing fallback)
-  for (const r of dev.config.routes ?? []) {
-    if (r && r.mask && (safeCidr(r.mask) === 0 || areSameSubnet(r.network, dstIp, r.mask))) {
-      candidates.push({
-        type: safeCidr(r.mask) === 0 ? 'default' : 'static',
-        outInterface: r.interface || '',
-        nextHopIp: r.nextHop,
-        metric: r.distance ?? 1,
-        prefixLen: safeCidr(r.mask),
-      });
-    }
-  }
-
-  // 3. OSPF routes: produced by the OSPF engine from real adjacencies + SPF (AD 110)
-  for (const r of ospfRoutes ?? []) {
-    if (r && r.mask && areSameSubnet(r.network, dstIp, r.mask)) {
-      candidates.push({
-        type: 'ospf',
-        outInterface: r.outInterface,
-        nextHopIp: r.nextHopIp,
-        metric: OSPF_AD,
-        prefixLen: safeCidr(r.mask),
-        cost: r.cost,
-      });
-    }
-  }
-
-  // 4. IS-IS routes (AD 115)
-  for (const r of isisRoutes ?? []) {
-    if (r && r.mask && areSameSubnet(r.prefix, dstIp, r.mask)) {
-      candidates.push({
-        type: 'isis',
-        outInterface: r.outInterface,
-        nextHopIp: r.nextHop,
-        metric: 115,
-        prefixLen: safeCidr(r.mask),
-        cost: r.metric,
-      });
-    }
-  }
-
-  // 5. EIGRP computed routes from DUAL state machine (AD 90 for internal, 170 for external)
-  for (const r of eigrpRoutes ?? []) {
-    if (r && r.mask && areSameSubnet(r.prefix, dstIp, r.mask)) {
-      candidates.push({
-        type: 'eigrp',
-        outInterface: r.outInterface,
-        nextHopIp: r.nextHop,
-        metric: r.isExternal ? 170 : 90,
-        prefixLen: safeCidr(r.mask),
-        cost: r.metric,
-      });
-    }
-  }
-
-  // 6. EIGRP network statements fallback
-  for (const net of dev.config.eigrp?.networks ?? []) {
-    if (net && net.wildcard && net.network) {
-      const care = (~ipToInt(net.wildcard)) >>> 0;
-      if (((ipToInt(dstIp) & care) >>> 0) === ((ipToInt(net.network) & care) >>> 0)) {
-        candidates.push({ type: 'eigrp', outInterface: '', nextHopIp: dstIp, metric: 90, prefixLen: wildcardToPrefixLen(net.wildcard) });
-      }
-    }
-  }
-  for (const net of dev.config.rip?.networks ?? []) {
-    if (net && areSameSubnet(net, dstIp, '255.255.255.0')) {
-      candidates.push({ type: 'rip', outInterface: '', nextHopIp: dstIp, metric: 120, prefixLen: 24 });
-    }
-  }
-  for (const net of dev.config.bgp?.networks ?? []) {
-    if (net && net.network && net.mask && areSameSubnet(net.network, dstIp, net.mask)) {
-      const neighbor = dev.config.bgp?.neighbors?.[0];
-      const isInternal = neighbor?.remoteAs === dev.config.bgp?.asn;
-      candidates.push({
-        type: 'bgp',
-        outInterface: '',
-        nextHopIp: neighbor?.ip || dstIp,
-        metric: isInternal ? 200 : 20,
-        prefixLen: safeCidr(net.mask),
-      });
-    }
-  }
-
-  if (candidates.length === 0) return null;
-
-  candidates.sort((a, b) => b.prefixLen - a.prefixLen || a.metric - b.metric || (a.cost ?? 0) - (b.cost ?? 0));
-  const best = candidates[0];
-
-  // Recursive lookup: resolve the egress interface from the next hop when only the next hop is known
-  if (!best.outInterface && best.nextHopIp) {
-    for (const [ifName, iface] of Object.entries(dev.config.interfaces)) {
-      if (iface.ip && iface.mask && iface.status === 'up' && areSameSubnet(iface.ip, best.nextHopIp, iface.mask)) {
-        best.outInterface = ifName.split('.')[0];
-        if (ifName.includes('.')) best.subInterface = ifName;
-        break;
-      }
-    }
-  }
-
-  return best;
-}
-
-const isRoutedForwarder = (d: Device): boolean =>
-  d.type.startsWith('router') || d.type === 'firewall' || d.type === 'firepower' || (d.type === 'l3switch' && !!d.config.ipRoutingEnabled) || isOspfCapable(d) && d.type !== 'switch';
-
-const isVirtualIface = (n: string) => /^vlan\d+$/i.test(n) || /^loopback/i.test(n);
+// Re-export modular simulation helpers for backward compatibility across engine and tests
+export { lookupRoute, checkAcl, type RouteMatch };
+export { simulateDhcp };
 
 export function simulatePing(
   srcDeviceId: string,
@@ -404,49 +179,22 @@ export function simulatePing(
       stepIndex: 1,
       totalSteps: 1,
       type: 'ICMP',
-      stage: 'Packet Forwarding Failed',
+      stage: 'Destination Host Unreachable',
       fromDeviceId: srcDev.id,
-      toDeviceId: forwardPath.dropDevice ? forwardPath.dropDevice.id : srcDev.id,
+      toDeviceId: srcDev.id,
       fromPort: srcIfaceName,
-      toPort: 'drop',
+      toPort: srcIfaceName,
       status: 'drop',
-      message: forwardPath.errorMessage || `Packet dropped: Destination ${dstIp} is unreachable.`,
-      l2Frame: { preamble: '10101011', srcMac, dstMac: 'FF:FF:FF:FF:FF:FF', type: '0x0800 (IPv4)' },
+      message: forwardPath.errorMessage || `Destination IP ${dstIp} is unreachable from ${srcDev.name}.`,
+      l2Frame: { preamble: '10101011', srcMac, dstMac: '00:00:00:00:00:00', type: '0x0800 (IPv4)' },
       l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl: 128, protocol: 'ICMP', srcIp, dstIp },
-      l4Payload: { protocol: 'ICMP', summary: `Echo Request - Drop: ${forwardPath.errorMessage}`, details: { reason: forwardPath.errorMessage } },
+      l4Payload: {
+        protocol: 'ICMP',
+        summary: 'Echo Request - Destination Unreachable',
+        details: { reason: forwardPath.errorMessage || 'No forwarding path exists' },
+      },
     });
-    return { steps, success: false, error: forwardPath.errorMessage };
-  }
-
-  // The echo reply must find its way back: every router on the path (and the destination, if routed)
-  // needs a route to the source address.
-  const replyRouters = new Map<string, Device>();
-  forwardPath.hops.forEach((h) => {
-    [h.fromDev, h.toDev].forEach((d) => {
-      if (d.id !== srcDev.id && isRoutedForwarder(d)) replyRouters.set(d.id, d);
-    });
-  });
-  for (const r of replyRouters.values()) {
-    if (!lookupRoute(r, srcIp, ospfState.routes[r.id] || [], isisState.routes[r.id] || [], eigrpState.routes[r.id] || [])) {
-      const msg = `Echo Reply cannot return: ${r.name} has no route back to ${srcIp}.`;
-      steps.push({
-        id: `step_err_${Date.now()}_ret`,
-        stepIndex: 1,
-        totalSteps: 1,
-        type: 'ICMP',
-        stage: 'Return Path Failure',
-        fromDeviceId: r.id,
-        toDeviceId: r.id,
-        fromPort: '',
-        toPort: '',
-        status: 'drop',
-        message: msg,
-        l2Frame: { preamble: '10101011', srcMac, dstMac: 'FF:FF:FF:FF:FF:FF', type: '0x0800 (IPv4)' },
-        l3Packet: { version: 4, ihl: 5, tos: 0, totalLength: 84, ttl: 64, protocol: 'ICMP', srcIp: dstIp, dstIp: srcIp },
-        l4Payload: { protocol: 'ICMP', summary: 'Echo Reply - Dropped (no return route)', details: { router: r.name } },
-      });
-      return { steps, success: false, error: msg };
-    }
+    return { steps, success: false, error: forwardPath.errorMessage || 'Destination host unreachable.' };
   }
 
   let stepCounter = 1;
@@ -723,23 +471,52 @@ export function simulatePing(
   }
 
   // Step 3: Return Path ICMP Echo Reply
-  const reverseHops = [...forwardPath.hops].reverse().map((h) => ({
-    fromDev: h.toDev,
-    toDev: h.fromDev,
-    fromPort: h.toPort,
-    toPort: h.fromPort,
-    linkId: h.linkId,
-    srcMac: h.dstMac,
-    dstMac: h.srcMac,
-    vlanTag: h.vlanTag,
-    mplsLabel: h.mplsLabel,
-    mplsAction: h.mplsAction,
-    isIpsecEncapsulated: h.isIpsecEncapsulated,
-    ipsecSpi: h.ipsecSpi,
-    isVxlan: h.isVxlan,
-    vxlanVni: h.vxlanVni,
-  }));
+  // Verify return path from dstDev back to srcIp (real IP stacks require a return route)
+  if (!dstDev) {
+    return { steps, success: false, error: `Destination IP ${dstIp} is unreachable.` };
+  }
+  const dstIfaceName = Object.entries(dstDev.config.interfaces).find(([, iface]) => iface && iface.ip === dstIp)?.[0]
+    || Object.keys(dstDev.config.interfaces)[0];
 
+  let returnNextHopIp = srcIp;
+  const dstIface = dstDev.config.interfaces[dstIfaceName];
+  if (!areSameSubnet(dstIp, srcIp, dstIface?.mask || '255.255.255.0')) {
+    if (dstDev.type === 'pc' || dstDev.type === 'laptop' || dstDev.type === 'server') {
+      if (!dstDev.config.defaultGateway) {
+        return {
+          steps,
+          success: false,
+          error: `Ping failed: no route back from ${dstDev.name} to ${srcIp} (no default gateway configured).`,
+        };
+      }
+      returnNextHopIp = dstDev.config.defaultGateway;
+    }
+  }
+
+  const returnPath = findL2L3ForwardPath(
+    dstDev,
+    dstIfaceName,
+    srcDev,
+    srcIp,
+    returnNextHopIp,
+    devices,
+    links,
+    stpTopology,
+    ospfState,
+    isisState,
+    eigrpState,
+    mplsState
+  );
+
+  if (!returnPath.success || returnPath.hops.length === 0) {
+    return {
+      steps,
+      success: false,
+      error: `Ping failed: echo request reached ${dstDev.name}, but there is no route back to ${srcIp} (${returnPath.errorMessage || 'no route back'}).`,
+    };
+  }
+
+  const reverseHops = returnPath.hops;
   let replyTtl = 64;
   for (let i = 0; i < reverseHops.length; i++) {
     const hop = reverseHops[i];
@@ -821,493 +598,4 @@ export function simulatePing(
   // Update total steps counter
   steps.forEach((s) => (s.totalSteps = steps.length));
   return { steps, success: true };
-}
-
-interface SimulatedHop {
-  fromDev: Device;
-  toDev: Device;
-  fromPort: string;
-  toPort: string;
-  linkId: string;
-  srcMac: string;
-  dstMac: string;
-  vlanTag?: number;
-  mplsLabel?: number;
-  mplsAction?: 'push' | 'swap' | 'pop';
-  isIpsecEncapsulated?: boolean;
-  ipsecSpi?: string;
-  isVxlan?: boolean;
-  vxlanVni?: number;
-}
-
-interface ForwardPathResult {
-  success: boolean;
-  hops: SimulatedHop[];
-  dropDevice?: Device;
-  errorMessage?: string;
-}
-
-function findL2L3ForwardPath(
-  srcDev: Device,
-  srcIfaceName: string,
-  dstDev: Device | undefined,
-  dstIp: string,
-  _nextHopIp: string,
-  devices: Device[],
-  links: Link[],
-  stpTopology: any,
-  ospfState: OspfState,
-  isisState?: any,
-  eigrpState?: any,
-  mplsState?: any
-): ForwardPathResult {
-  if (!srcDev || !srcDev.config || !srcDev.config.interfaces) {
-    return { success: false, hops: [], errorMessage: 'Invalid source device structure.' };
-  }
-  if (!dstDev || !dstDev.config || !dstDev.config.interfaces) {
-    return {
-      success: false,
-      hops: [],
-      errorMessage: `Destination IP ${dstIp} is not reachable on any configured network device.`,
-    };
-  }
-  if (!Array.isArray(devices) || !Array.isArray(links)) {
-    return { success: false, hops: [], errorMessage: 'Topology arrays are invalid.' };
-  }
-
-  // Determine starting VLAN tag (based on source interface accessVlan or sub-interface encapsulation)
-  const srcIface = srcDev.config.interfaces[srcIfaceName];
-  let currentVlan = srcIface?.accessVlan || 1;
-  if (srcIfaceName && srcIfaceName.includes('.') && srcIface?.encapsulationDot1Q) {
-    currentVlan = srcIface.encapsulationDot1Q;
-  }
-
-  // Dijkstra / BFS search through the network graph evaluating L2 VLAN and L3 routing rules
-  interface State {
-    currentDevId: string;
-    inPort: string;
-    currentVlan: number;
-    hops: SimulatedHop[];
-    visited: Set<string>;
-  }
-
-  const queue: State[] = [
-    {
-      currentDevId: srcDev.id,
-      inPort: srcIfaceName || '',
-      currentVlan,
-      hops: [],
-      visited: new Set([`${srcDev.id}:${srcIfaceName || ''}`]),
-    },
-  ];
-
-  const routeDrops = new Set<string>();
-  const physicalOf = (n: string) => n.split('.')[0];
-  let iterations = 0;
-  const MAX_ITERATIONS = 2000;
-
-  while (queue.length > 0) {
-    iterations++;
-    if (iterations > MAX_ITERATIONS) {
-      return { success: false, hops: [], errorMessage: 'Path search reached maximum limit (potential routing loop detected).' };
-    }
-    const current = queue.shift()!;
-    const currDev = devices.find((d) => d.id === current.currentDevId);
-    if (!currDev) continue;
-
-    // Check if reached destination device
-    if (currDev.id === dstDev.id) {
-      return { success: true, hops: current.hops };
-    }
-
-    // Find links attached to this device
-    const attachedLinks = links.filter(
-      (l) => l.fromDevice === currDev.id || l.toDevice === currDev.id
-    );
-
-    for (const link of attachedLinks) {
-      const isFrom: boolean = link.fromDevice === currDev.id;
-      const egressPortName = isFrom ? link.fromPort : link.toPort;
-      const ingressPortName = isFrom ? link.toPort : link.fromPort;
-      const nextDevId = isFrom ? link.toDevice : link.fromDevice;
-      const nextDev = devices.find((d) => d.id === nextDevId);
-      if (!nextDev) continue;
-
-      const key = `${nextDevId}:${ingressPortName}`;
-      if (current.visited.has(key)) continue;
-
-      const egressIface = currDev.config.interfaces[egressPortName];
-      const ingressIface = nextDev.config.interfaces[ingressPortName];
-
-      // 1. Port Status Check
-      if (egressIface && egressIface.status === 'down') continue;
-      if (ingressIface && ingressIface.status === 'down') continue;
-
-      // 2. STP Blocking Check for current frame VLAN (PVST+)
-      const stpEgress = getStpPortState(stpTopology, currDev.id, egressPortName, current.currentVlan);
-      if (stpEgress && stpEgress.state === 'BLK') continue;
-      const stpIngress = getStpPortState(stpTopology, nextDev.id, ingressPortName, current.currentVlan);
-      if (stpIngress && stpIngress.state === 'BLK') continue;
-
-      // 3. VLAN and Mode evaluation
-      let outVlan = current.currentVlan;
-      let frameTagged: number | undefined = undefined;
-
-      const isSwitch = currDev.type === 'switch' || currDev.type === 'switch3560' || currDev.type === 'l3switch' || currDev.type === 'nexus9000';
-
-      if (isSwitch) {
-        const mode = egressIface?.mode || 'access';
-        if (mode === 'access') {
-          const accessVlan = egressIface?.accessVlan || 1;
-          if (accessVlan !== current.currentVlan) {
-            // Drop: Access port assigned to different VLAN than frame
-            continue;
-          }
-          outVlan = accessVlan;
-        } else if (mode === 'trunk') {
-          const allowed = egressIface?.trunkAllowedVlans;
-          if (allowed && allowed.length > 0 && !allowed.includes(current.currentVlan)) {
-            // Drop: VLAN not permitted across trunk
-            continue;
-          }
-          const nativeVlan = egressIface?.nativeVlan || 1;
-          if (current.currentVlan !== nativeVlan) {
-            frameTagged = current.currentVlan;
-          }
-        }
-      }
-
-      // 4. L3 forwarding decision: a router/L3 switch only forwards if its routing table says so
-      if (isRoutedForwarder(currDev) && currDev.id !== dstDev.id) {
-        const route = lookupRoute(
-          currDev,
-          dstIp,
-          ospfState.routes[currDev.id] || [],
-          isisState?.routes?.[currDev.id] || [],
-          eigrpState?.routes?.[currDev.id] || []
-        );
-        if (!route) {
-          routeDrops.add(`No route to ${dstIp} on ${currDev.name} (routing table has no matching prefix and no default route).`);
-          continue;
-        }
-        if (route.type !== 'connected' && !route.outInterface) {
-          routeDrops.add(`${currDev.name} cannot resolve next hop ${route.nextHopIp} for ${dstIp}: no connected subnet reaches it.`);
-          continue;
-        }
-        if (route.outInterface && !isVirtualIface(route.outInterface) && physicalOf(egressPortName) !== route.outInterface) {
-          continue; // this link is not the egress interface chosen by the routing table
-        }
-        if (route.subInterface) {
-          const subIface = currDev.config.interfaces[route.subInterface];
-          if (subIface && subIface.encapsulationDot1Q) {
-            outVlan = subIface.encapsulationDot1Q;
-            frameTagged = subIface.encapsulationDot1Q;
-          }
-        }
-      }
-
-      // Check protocol encapsulations: MPLS, IPsec, VXLAN
-      let hopMplsLabel: number | undefined;
-      let hopMplsAction: 'push' | 'swap' | 'pop' | undefined;
-      const isMplsHop = currDev.config.interfaces[egressPortName]?.mplsEnabled || currDev.config.mpls?.enabled;
-      if (isMplsHop) {
-        const lfib = mplsState?.lfib?.[currDev.id] || [];
-        const isIngressPe = mplsState?.ingressPeRouters?.includes(currDev.id);
-        const isCore = mplsState?.coreRouters?.includes(currDev.id);
-        if (isIngressPe) {
-          hopMplsAction = 'push';
-          hopMplsLabel = lfib[0]?.inLabel || 1002;
-        } else if (isCore) {
-          hopMplsAction = 'swap';
-          hopMplsLabel = lfib[0]?.inLabel ? lfib[0].inLabel + 2 : 1004;
-        } else {
-          hopMplsAction = 'pop';
-        }
-      }
-
-      const cryptoRes = matchIpsecCryptoMap(currDev, srcDev.config.interfaces[srcIfaceName]?.ip || '', dstIp);
-      const vxlanRes = matchVxlanOverlay(currDev, outVlan);
-
-      const hopSrcMac = egressIface?.mac || '00:11:22:33:44:55';
-      const hopDstMac = ingressIface?.mac || '00:aa:bb:cc:dd:ee';
-
-      const nextVisited = new Set(current.visited);
-      nextVisited.add(key);
-
-      queue.push({
-        currentDevId: nextDevId,
-        inPort: ingressPortName,
-        currentVlan: outVlan,
-        hops: [
-          ...current.hops,
-          {
-            fromDev: currDev,
-            toDev: nextDev,
-            fromPort: egressPortName,
-            toPort: ingressPortName,
-            linkId: link.id,
-            srcMac: hopSrcMac,
-            dstMac: hopDstMac,
-            vlanTag: frameTagged,
-            mplsLabel: hopMplsLabel,
-            mplsAction: hopMplsAction,
-            isIpsecEncapsulated: cryptoRes.isEncapsulated,
-            ipsecSpi: cryptoRes.spi,
-            isVxlan: vxlanRes.isVxlan,
-            vxlanVni: vxlanRes.vni,
-          },
-        ],
-        visited: nextVisited,
-      });
-    }
-  }
-
-  // If no path found through switches/routers
-  if (routeDrops.size > 0) {
-    return { success: false, hops: [], errorMessage: [...routeDrops][0] };
-  }
-  return {
-    success: false,
-    hops: [],
-    errorMessage: `No valid forwarding path found between ${srcDev.name} and ${dstDev.name}. Check VLAN memberships, trunk allowances, or IP routing.`,
-  };
-}
-
-export function simulateDhcp(
-  clientDeviceId: string,
-  devices: Device[],
-  _links: Link[]
-): { steps: SimulationStep[]; allocatedConfig?: { ip: string; mask: string; gateway: string; dns: string }; error?: string } {
-  if (!clientDeviceId || typeof clientDeviceId !== 'string') {
-    return { steps: [], error: 'Invalid client device ID' };
-  }
-  if (!Array.isArray(devices)) {
-    return { steps: [], error: 'Topology devices array is invalid' };
-  }
-
-  const client = devices.find((d) => d && d.id === clientDeviceId);
-  if (!client || !client.config) return { steps: [], error: 'Client device not found or unconfigured' };
-
-  // Locate DHCP Server (either Server device with DHCP enabled, or Router with DHCP pool)
-  let dhcpServer: Device | undefined;
-  let serverPoolConfig: { ip: string; mask: string; gateway: string; dns: string } | undefined;
-
-  for (const d of devices) {
-    if (!d || !d.config) continue;
-    if (d.type === 'server' && d.config.services?.dhcp?.enabled) {
-      dhcpServer = d;
-      const s = d.config.services.dhcp;
-      if (s) {
-        serverPoolConfig = {
-          ip: s.startIp || '192.168.1.100',
-          mask: s.mask || '255.255.255.0',
-          gateway: s.defaultGateway || '192.168.1.1',
-          dns: s.dnsServer || '8.8.8.8',
-        };
-      }
-      break;
-    }
-    if ((d.type === 'router' || d.type === 'l3switch') && d.config.dhcpPools) {
-      const firstPool = Object.values(d.config.dhcpPools)[0];
-      if (firstPool && firstPool.network && firstPool.mask) {
-        dhcpServer = d;
-        const netParts = firstPool.network.split('.');
-        const nextIp = `${netParts[0]}.${netParts[1]}.${netParts[2]}.50`;
-        serverPoolConfig = {
-          ip: nextIp,
-          mask: firstPool.mask,
-          gateway: firstPool.defaultRouter,
-          dns: firstPool.dnsServer || '8.8.8.8',
-        };
-        break;
-      }
-    }
-  }
-
-  if (!dhcpServer || !serverPoolConfig) {
-    return {
-      steps: [],
-      error: 'No active DHCP Server or router DHCP pool discovered on the network topology.',
-    };
-  }
-
-  const clientIface = Object.values(client.config.interfaces)[0];
-  const clientMac = clientIface ? clientIface.mac : '00:1c:b1:00:00:01';
-  const serverIface = Object.values(dhcpServer.config.interfaces)[0];
-  const serverMac = serverIface ? serverIface.mac : '00:1c:b1:99:99:99';
-  const serverIp = serverIface?.ip || serverPoolConfig.gateway || '192.168.1.1';
-
-  const steps: SimulationStep[] = [];
-
-  // Stage 1: DHCP DISCOVER
-  steps.push({
-    id: `dhcp_disc_${Date.now()}`,
-    stepIndex: 1,
-    totalSteps: 4,
-    type: 'DHCP',
-    stage: 'DHCP Discover (Broadcast)',
-    fromDeviceId: client.id,
-    toDeviceId: dhcpServer.id,
-    fromPort: clientIface?.name || 'Fa0/0',
-    toPort: serverIface?.name || 'Fa0/0',
-    status: 'broadcast',
-    message: 'DHCP Discover: Client broadcasts request for IP address parameters',
-    l2Frame: {
-      preamble: '10101011',
-      srcMac: clientMac,
-      dstMac: 'FF:FF:FF:FF:FF:FF',
-      type: '0x0800 (IPv4)',
-    },
-    l3Packet: {
-      version: 4,
-      ihl: 5,
-      tos: 0,
-      totalLength: 328,
-      ttl: 128,
-      protocol: 'UDP',
-      srcIp: '0.0.0.0',
-      dstIp: '255.255.255.255',
-    },
-    l4Payload: {
-      protocol: 'DHCP',
-      summary: 'DHCP Discover (Type 1)',
-      details: {
-        op: 'BOOTREQUEST (1)',
-        xid: '0x39a1c24e',
-        clientMac,
-        sourcePort: 68,
-        destinationPort: 67,
-      },
-    },
-  });
-
-  // Stage 2: DHCP OFFER
-  steps.push({
-    id: `dhcp_offer_${Date.now()}`,
-    stepIndex: 2,
-    totalSteps: 4,
-    type: 'DHCP',
-    stage: 'DHCP Offer (Unicast/Broadcast)',
-    fromDeviceId: dhcpServer.id,
-    toDeviceId: client.id,
-    fromPort: serverIface?.name || 'Fa0/0',
-    toPort: clientIface?.name || 'Fa0/0',
-    status: 'reply',
-    message: `DHCP Offer: Server offers ${serverPoolConfig.ip} with lease options`,
-    l2Frame: {
-      preamble: '10101011',
-      srcMac: serverMac,
-      dstMac: clientMac,
-      type: '0x0800 (IPv4)',
-    },
-    l3Packet: {
-      version: 4,
-      ihl: 5,
-      tos: 0,
-      totalLength: 328,
-      ttl: 64,
-      protocol: 'UDP',
-      srcIp: serverIp,
-      dstIp: '255.255.255.255',
-    },
-    l4Payload: {
-      protocol: 'DHCP',
-      summary: 'DHCP Offer (Type 2)',
-      details: {
-        op: 'BOOTREPLY (2)',
-        yourIp: serverPoolConfig.ip,
-        serverIp,
-        subnetMask: serverPoolConfig.mask,
-        router: serverPoolConfig.gateway,
-        dns: serverPoolConfig.dns,
-        leaseTime: '86400s (24 hours)',
-      },
-    },
-  });
-
-  // Stage 3: DHCP REQUEST
-  steps.push({
-    id: `dhcp_req_${Date.now()}`,
-    stepIndex: 3,
-    totalSteps: 4,
-    type: 'DHCP',
-    stage: 'DHCP Request (Broadcast)',
-    fromDeviceId: client.id,
-    toDeviceId: dhcpServer.id,
-    fromPort: clientIface?.name || 'Fa0/0',
-    toPort: serverIface?.name || 'Fa0/0',
-    status: 'forward',
-    message: `DHCP Request: Client formally accepts offer ${serverPoolConfig.ip}`,
-    l2Frame: {
-      preamble: '10101011',
-      srcMac: clientMac,
-      dstMac: 'FF:FF:FF:FF:FF:FF',
-      type: '0x0800 (IPv4)',
-    },
-    l3Packet: {
-      version: 4,
-      ihl: 5,
-      tos: 0,
-      totalLength: 328,
-      ttl: 128,
-      protocol: 'UDP',
-      srcIp: '0.0.0.0',
-      dstIp: '255.255.255.255',
-    },
-    l4Payload: {
-      protocol: 'DHCP',
-      summary: 'DHCP Request (Type 3)',
-      details: {
-        op: 'BOOTREQUEST (1)',
-        requestedIp: serverPoolConfig.ip,
-        serverIdentifier: serverIp,
-        clientMac,
-      },
-    },
-  });
-
-  // Stage 4: DHCP ACK
-  steps.push({
-    id: `dhcp_ack_${Date.now()}`,
-    stepIndex: 4,
-    totalSteps: 4,
-    type: 'DHCP',
-    stage: 'DHCP Acknowledgment (ACK)',
-    fromDeviceId: dhcpServer.id,
-    toDeviceId: client.id,
-    fromPort: serverIface?.name || 'Fa0/0',
-    toPort: clientIface?.name || 'Fa0/0',
-    status: 'success',
-    message: `DHCP ACK: Server confirms IP configuration ${serverPoolConfig.ip}`,
-    l2Frame: {
-      preamble: '10101011',
-      srcMac: serverMac,
-      dstMac: clientMac,
-      type: '0x0800 (IPv4)',
-    },
-    l3Packet: {
-      version: 4,
-      ihl: 5,
-      tos: 0,
-      totalLength: 328,
-      ttl: 64,
-      protocol: 'UDP',
-      srcIp: serverIp,
-      dstIp: serverPoolConfig.ip,
-    },
-    l4Payload: {
-      protocol: 'DHCP',
-      summary: 'DHCP ACK (Type 5)',
-      details: {
-        op: 'BOOTREPLY (2)',
-        confirmedIp: serverPoolConfig.ip,
-        subnetMask: serverPoolConfig.mask,
-        defaultGateway: serverPoolConfig.gateway,
-        dnsServer: serverPoolConfig.dns,
-        status: 'Lease active',
-      },
-    },
-  });
-
-  return { steps, allocatedConfig: serverPoolConfig };
 }

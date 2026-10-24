@@ -64,6 +64,8 @@ export interface DeviceInterface {
   voiceVlan?: number;
   portfast?: boolean;
   bpduguard?: boolean;
+  stpCost?: number;
+  stpPortPriority?: number;
   cdpEnabled?: boolean;
   lldpEnabled?: boolean;
   mode?: 'access' | 'trunk' | 'routed';
@@ -565,6 +567,8 @@ export interface LabScenario {
   objective: string;
   instructions: string[];
   tips?: string[];
+  solutionHints?: string[];
+  solutionCommands?: Record<string, string[]>;
   initialTopology: () => { devices: Device[]; links: Link[] };
   validate: (devices: Device[], links: Link[]) => {
     passed: boolean;

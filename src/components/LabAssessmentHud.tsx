@@ -14,6 +14,7 @@ import {
   HelpCircle,
   ShieldCheck,
 } from 'lucide-react';
+import { audioEngine } from '../utils/audioEffects';
 
 interface LabAssessmentHudProps {
   activeLabId: string;
@@ -52,6 +53,7 @@ export const LabAssessmentHud: React.FC<LabAssessmentHudProps> = ({
   useEffect(() => {
     if (is100Percent && !hasCelebrated) {
       setHasCelebrated(true);
+      audioEngine.playVictoryFanfare();
     }
   }, [is100Percent, hasCelebrated]);
 

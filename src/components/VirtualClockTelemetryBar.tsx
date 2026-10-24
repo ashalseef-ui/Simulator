@@ -18,7 +18,7 @@ const STORAGE_KEY = 'netsim_worker_hud_pos_v2';
 
 export const VirtualClockTelemetryBar: React.FC = () => {
   const [snapshot, setSnapshot] = useState<VirtualClockSnapshot>(workerBridge.clock.getSnapshot());
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Position state (null = calculate safe initial position avoiding zoom HUD)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
@@ -205,17 +205,17 @@ export const VirtualClockTelemetryBar: React.FC = () => {
       {!isExpanded ? (
         <div
           onPointerDown={handlePointerDown}
-          className="px-3 py-1.5 rounded-full bg-slate-900/95 border border-sky-500/40 text-slate-200 text-xs font-mono font-bold flex items-center gap-2 shadow-2xl backdrop-blur-md hover:border-sky-400 transition-all cursor-grab active:cursor-grabbing group"
-          title="Web Worker Telemetry • Drag to reposition freely or click expand"
+          className="px-2.5 py-1 rounded-full bg-slate-950/90 border border-white/10 text-slate-200 text-xs font-mono font-medium flex items-center gap-2 shadow-xl backdrop-blur-xl hover:border-sky-400/40 transition-all cursor-grab active:cursor-grabbing group"
+          title="DES Engine Telemetry • Drag to reposition or click to expand"
         >
-          <GripHorizontal className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <Cpu className="w-3.5 h-3.5 text-sky-400 group-hover:rotate-12 transition-transform" />
-          <span className="text-[11px] text-sky-300">DES Engine: {snapshot.formattedTime}</span>
+          <GripHorizontal className="w-3 h-3 text-slate-500 group-hover:text-slate-300 transition-colors" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <Cpu className="w-3 h-3 text-sky-400 group-hover:rotate-12 transition-transform" />
+          <span className="text-[11px] text-sky-300 font-semibold">{snapshot.formattedTime}</span>
           <button
             onClick={() => setIsExpanded(true)}
             className="p-0.5 hover:text-white text-slate-400 cursor-pointer"
-            title="Expand Web Worker Telemetry"
+            title="Expand Simulation Controls"
           >
             <ChevronUp className="w-3.5 h-3.5" />
           </button>
@@ -223,13 +223,13 @@ export const VirtualClockTelemetryBar: React.FC = () => {
       ) : (
         /* Expanded Full Telemetry Bar */
         <div
-          className="w-80 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-100"
+          className="w-72 bg-slate-950/95 border border-white/10 rounded-xl shadow-2xl backdrop-blur-xl p-2.5 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-100"
         >
           {/* Top Row: Drag Handle Header, Engine Status & Controls */}
           <div
             onPointerDown={handlePointerDown}
-            className="flex items-center justify-between gap-3 border-b border-slate-800 pb-2 cursor-grab active:cursor-grabbing group"
-            title="Click and drag to move Web Worker window freely"
+            className="flex items-center justify-between gap-2 border-b border-white/5 pb-1.5 cursor-grab active:cursor-grabbing group"
+            title="Click and drag to move freely"
           >
             <div className="flex items-center gap-2">
               <div
@@ -279,13 +279,13 @@ export const VirtualClockTelemetryBar: React.FC = () => {
           </div>
 
           {/* Middle Row: Virtual Clock Readout & Controls */}
-          <div className="flex items-center justify-between gap-3 bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800/80">
+          <div className="flex items-center justify-between gap-3 bg-white/[0.02] px-2.5 py-1.5 rounded-lg border border-white/5">
             {/* Clock Time */}
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-400" />
+              <Clock className="w-3.5 h-3.5 text-sky-400" />
               <div>
-                <div className="text-[9px] text-slate-400 font-mono uppercase">Virtual Sim Time</div>
-                <div className="text-sm font-mono font-extrabold text-sky-300">
+                <div className="text-[9px] text-slate-500 font-mono uppercase">Virtual Sim Time</div>
+                <div className="text-xs font-mono font-bold text-sky-300">
                   {snapshot.formattedTime}
                 </div>
               </div>
@@ -293,8 +293,8 @@ export const VirtualClockTelemetryBar: React.FC = () => {
 
             {/* Tick Counter */}
             <div className="text-right">
-              <div className="text-[9px] text-slate-400 font-mono uppercase">Tick Clock</div>
-              <div className="text-xs font-mono font-bold text-indigo-400">
+              <div className="text-[9px] text-slate-500 font-mono uppercase">Tick</div>
+              <div className="text-xs font-mono font-medium text-slate-300">
                 #{snapshot.currentTick}
               </div>
             </div>
@@ -306,35 +306,35 @@ export const VirtualClockTelemetryBar: React.FC = () => {
             <div className="flex items-center gap-1">
               <button
                 onClick={handleTogglePlay}
-                className={`p-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
+                className={`p-1.5 rounded-md font-bold transition-colors cursor-pointer ${
                   snapshot.paused
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
-                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
                 }`}
                 title={snapshot.paused ? 'Resume Simulation Clock' : 'Pause Simulation Clock'}
               >
-                {snapshot.paused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5 fill-current" />}
+                {snapshot.paused ? <Play className="w-3 h-3 fill-current" /> : <Pause className="w-3 h-3 fill-current" />}
               </button>
 
               <button
                 onClick={handleStepOnce}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-md bg-white/[0.04] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer border border-white/5"
                 title="Step +1 Discrete Tick (+50ms)"
               >
-                <FastForward className="w-3.5 h-3.5" />
+                <FastForward className="w-3 h-3" />
               </button>
 
               <button
                 onClick={handleReset}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-md bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer border border-white/5"
                 title="Reset Simulation Clock"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
               </button>
             </div>
 
             {/* Speed Multiplier Chips */}
-            <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px] font-mono">
+            <div className="flex items-center bg-white/[0.04] p-0.5 rounded-md border border-white/5 text-[10px] font-mono">
               {[0.5, 1, 2, 5].map((spd) => (
                 <button
                   key={spd}

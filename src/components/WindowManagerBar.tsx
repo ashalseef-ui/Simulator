@@ -1,5 +1,6 @@
 import React from 'react';
 import { Device, DeviceWindowState } from '../types/network';
+import { Terminal, Minus, Scale } from 'lucide-react';
 
 interface WindowManagerBarProps {
   windows: Record<string, DeviceWindowState>;
@@ -19,12 +20,13 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
   const windowList = Object.values(windows);
 
   return (
-    <footer className="h-10 bg-slate-950 border-t border-slate-800 px-3 flex items-center justify-between select-none z-30">
-      {/* Open Windows Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-1">
+    <footer className="h-8.5 bg-slate-950 border-t border-white/5 px-3 flex items-center justify-between select-none z-30 shrink-0">
+      {/* Open Windows Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar py-0.5">
         {windowList.length === 0 ? (
-          <span className="text-[11px] text-slate-500 font-medium">
-            Double-click any device on the canvas to open CLI / Configuration
+          <span className="text-[11px] text-slate-500 font-normal flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+            Double-click any device to open CLI / configuration console
           </span>
         ) : (
           windowList.map((win) => {
@@ -36,18 +38,18 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
               <button
                 key={win.id}
                 onClick={() => onToggleWindow(win.id)}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1.5 border transition-all cursor-pointer ${
                   !isMin
-                    ? 'bg-slate-800 border-sky-500/50 text-white shadow-sm'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-white/10 border-sky-400/50 text-white shadow-sm'
+                    : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/5'
                 }`}
               >
-                <div
-                  className={`w-2 h-2 rounded-full ${
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
                     !isMin ? 'bg-sky-400' : 'bg-slate-600'
                   }`}
                 />
-                <span className="truncate max-w-[120px]">
+                <span className="truncate max-w-[130px] font-mono text-[11px]">
                   {dev.config.hostname || dev.name}
                 </span>
               </button>
@@ -56,8 +58,23 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
         )}
       </div>
 
-      {/* Right Controls: Disclaimer & minimize all */}
-      <div className="flex items-center gap-3">
+      {/* Right Controls: Window Actions & Info */}
+      <div className="flex items-center gap-3 shrink-0">
+        {windowList.length > 0 && (
+          <button
+            onClick={onMinimizeAll}
+            title="Minimize All Windows"
+            className="text-[11px] text-slate-400 hover:text-white px-2 py-0.5 hover:bg-white/5 rounded transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <Minus className="w-3 h-3" />
+            <span>Minimize All</span>
+          </button>
+        )}
+
+        <div className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+          {devices.length} {devices.length === 1 ? 'device' : 'devices'}
+        </div>
+
         {onOpenLegal && (
           <button
             onClick={onOpenLegal}
@@ -65,17 +82,8 @@ export const WindowManagerBar: React.FC<WindowManagerBarProps> = ({
             className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <span>Educational Simulator</span>
-            <span className="text-slate-600">•</span>
-            <span className="hidden md:inline">Legal & Trademarks</span>
-          </button>
-        )}
-        {windowList.length > 0 && (
-          <button
-            onClick={onMinimizeAll}
-            title="Minimize All Windows"
-            className="text-[11px] text-slate-400 hover:text-white px-2 py-1 hover:bg-slate-900 rounded cursor-pointer"
-          >
-            Minimize All
+            <span className="text-slate-700">·</span>
+            <span className="hidden md:inline">Legal Disclaimer</span>
           </button>
         )}
       </div>

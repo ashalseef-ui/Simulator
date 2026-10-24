@@ -166,7 +166,7 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 select-none">
       <div className="w-full max-w-3xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30">
               <Binary className="w-4 h-4" />
@@ -185,10 +185,10 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 gap-1">
+            <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 gap-0.5">
               <button
                 onClick={() => setActiveTab('calc')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
                   activeTab === 'calc'
                     ? 'bg-sky-500 text-white'
                     : 'text-slate-400 hover:text-white'
@@ -198,7 +198,7 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('vlsm')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 ${
                   activeTab === 'vlsm'
                     ? 'bg-indigo-500 text-white'
                     : 'text-slate-400 hover:text-white'
@@ -209,7 +209,7 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('matrix')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 ${
                   activeTab === 'matrix'
                     ? 'bg-emerald-500 text-white'
                     : 'text-slate-400 hover:text-white'
@@ -220,7 +220,7 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
               </button>
               <button
                 onClick={() => setActiveTab('quiz')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors flex items-center gap-1 ${
                   activeTab === 'quiz'
                     ? 'bg-purple-500 text-white'
                     : 'text-slate-400 hover:text-white'
@@ -233,7 +233,7 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 ml-1 cursor-pointer"
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 ml-1 cursor-pointer transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -241,12 +241,12 @@ export const SubnetCalculatorModal: React.FC<SubnetCalculatorModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar text-xs">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar text-xs">
           {/* TAB 1: CALCULATOR */}
           {activeTab === 'calc' && (
-            <div className="space-y-5">
+            <div className="space-y-3.5">
               {/* Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
                     IPv4 Address

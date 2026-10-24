@@ -7,6 +7,7 @@ interface DeviceFrontPanelProps {
   device?: Device;
   onPortClick?: (portName: string) => void;
   selectedPortName?: string | null;
+  animated?: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ export const DeviceFrontPanel: React.FC<DeviceFrontPanelProps> = ({
   device,
   onPortClick,
   selectedPortName,
+  animated = true,
 }) => {
   // Helper to check interface status
   const getPortStatus = (portName: string): { isUp: boolean; hasCable: boolean } => {
@@ -36,7 +38,7 @@ export const DeviceFrontPanel: React.FC<DeviceFrontPanelProps> = ({
   if (mode === 'thumbnail' || mode === 'compact') {
     return (
       <div className="w-full flex items-center justify-center select-none pointer-events-none">
-        {renderCompactFrontPanel(type)}
+        {renderCompactFrontPanel(type, animated)}
       </div>
     );
   }
@@ -54,7 +56,10 @@ export const DeviceFrontPanel: React.FC<DeviceFrontPanelProps> = ({
 // =========================================================================
 // 1. COMPACT FRONT PANEL GRAPHICS
 // =========================================================================
-function renderCompactFrontPanel(type: DeviceType) {
+function renderCompactFrontPanel(type: DeviceType, animated: boolean = true) {
+  const pulseClass = animated ? 'animate-pulse' : '';
+  const pingClass = animated ? 'animate-ping' : '';
+
   switch (type) {
     // ROUTERS
     case 'router':
@@ -68,7 +73,7 @@ function renderCompactFrontPanel(type: DeviceType) {
               {type === 'router4331' ? 'CISCO 4331' : type === 'router1941' ? 'CISCO 1941' : 'CISCO 2911'}
             </span>
             <div className="flex gap-0.5 items-center">
-              <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" />
+              <span className={`w-1 h-1 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 ${pulseClass}`} />
               <span className="w-1 h-1 rounded-full bg-emerald-500" />
             </div>
           </div>
@@ -96,7 +101,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-emerald-950 via-slate-900 to-black border border-emerald-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[6px] font-mono leading-none">
             <span className="text-[5px] text-emerald-400 font-bold tracking-tighter">JUNIPER vSRX</span>
-            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" />
+            <span className={`w-1 h-1 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 ${pulseClass}`} />
           </div>
           <div className="flex gap-0.5 items-center justify-end">
             {[0, 1, 2, 3].map((i) => (
@@ -114,7 +119,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-amber-950/60 via-slate-900 to-black border border-amber-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[6px] font-mono leading-none">
             <span className="text-[5px] text-amber-400 font-bold tracking-tighter">LINUX / VyOS</span>
-            <span className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-amber-400 ${pulseClass}`} />
           </div>
           <div className="flex gap-0.5 items-center justify-end">
             {[0, 1, 2, 3].map((i) => (
@@ -131,7 +136,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-slate-200 via-slate-300 to-slate-400 border border-rose-500/50 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[6px] font-mono leading-none text-slate-800 font-bold">
             <span className="text-[5px] text-rose-700 font-bold tracking-tighter">MikroTik CCR</span>
-            <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-rose-500 ${pulseClass}`} />
           </div>
           <div className="flex gap-0.5 items-center justify-between">
             <div className="w-4 h-2 bg-slate-900 border border-slate-700 rounded-[0.5px] flex items-center justify-center">
@@ -153,7 +158,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-indigo-950 via-slate-900 to-black border border-indigo-500/50 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[6px] font-mono leading-none">
             <span className="text-[5px] text-indigo-400 font-bold tracking-tighter">ARISTA 7050X</span>
-            <span className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-indigo-400 ${pulseClass}`} />
           </div>
           <div className="flex gap-0.5 items-center justify-end">
             <div className="grid grid-cols-4 gap-0.5">
@@ -170,7 +175,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-slate-800 via-slate-900 to-black border border-emerald-500/40 shadow-md p-1 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[6px] font-mono leading-none">
             <span className="text-[5px] text-emerald-400 font-bold tracking-tighter">JUNIPER EX4300</span>
-            <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-emerald-400 ${pulseClass}`} />
           </div>
           <div className="grid grid-cols-6 gap-0.5 mt-0.5">
             {Array.from({ length: 12 }).map((_, i) => (
@@ -198,7 +203,7 @@ function renderCompactFrontPanel(type: DeviceType) {
             </span>
             <div className="flex gap-0.5 items-center">
               <span className="w-1 h-1 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
-              <span className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
+              <span className={`w-1 h-1 rounded-full bg-emerald-400 ${pingClass}`} />
             </div>
           </div>
           {/* High-density 24-port switch bank */}
@@ -273,7 +278,7 @@ function renderCompactFrontPanel(type: DeviceType) {
       return (
         <div className="w-12 h-8 rounded-full bg-gradient-to-b from-slate-100 to-slate-300 border border-slate-400/80 shadow-md flex items-center justify-center relative">
           <div className="w-5 h-5 rounded-full border border-sky-400/80 flex items-center justify-center bg-slate-100">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
+            <div className={`w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 ${pulseClass}`} />
           </div>
           <span className="absolute bottom-0.5 text-[5px] font-mono text-slate-600 font-bold">AP 3702</span>
         </div>
@@ -308,7 +313,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-sky-950 via-slate-900 to-black border border-sky-400/50 p-1 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[5px] font-mono text-sky-400 font-bold">
             <span>{type === 'mpls_cloud' ? 'MPLS WAN' : 'ISP CLOUD'}</span>
-            <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-cyan-400 ${pulseClass}`} />
           </div>
           <div className="flex items-center justify-around">
             <div className="w-2.5 h-2 bg-cyan-950 border border-cyan-400 rounded-[1px]" />
@@ -325,7 +330,7 @@ function renderCompactFrontPanel(type: DeviceType) {
             <span className="w-1 h-1 rounded-full bg-emerald-400" />
             <span className="w-1 h-1 rounded-full bg-emerald-400" />
             <span className="w-1 h-1 rounded-full bg-emerald-400" />
-            <span className="w-1 h-1 rounded-full bg-cyan-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-cyan-400 ${pulseClass}`} />
           </div>
           <span className="text-[4px] font-mono text-slate-400">DOCSIS</span>
         </div>
@@ -363,7 +368,7 @@ function renderCompactFrontPanel(type: DeviceType) {
         <div className="w-16 h-7 rounded-sm bg-gradient-to-b from-slate-800 via-slate-900 to-black border border-purple-500/40 p-1 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[5px] font-mono text-purple-300 font-bold">
             <span>UCS SERVER</span>
-            <span className="w-1 h-1 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
+            <span className={`w-1 h-1 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 ${pulseClass}`} />
           </div>
           {/* Dual SAS Drive Caddies */}
           <div className="flex gap-1 items-center">

@@ -123,11 +123,11 @@ export const ProtocolsDashboard: React.FC<ProtocolsDashboardProps> = ({
       </div>
 
       {/* Protocol Main Display Panel */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 custom-scrollbar">
         {/* 1. EIGRP */}
         {selectedProto === 'eigrp' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between bg-slate-900/90 p-4 rounded-xl border border-slate-800">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-slate-900/90 p-3 rounded-xl border border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Network className="w-4 h-4 text-sky-400" />

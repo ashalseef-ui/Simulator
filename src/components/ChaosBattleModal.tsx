@@ -281,10 +281,10 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-amber-500/50 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md">
-              <Flame className="w-5 h-5 animate-pulse" />
+        <div className="px-5 py-3 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-md">
+              <Flame className="w-4 h-4 animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -309,10 +309,10 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto custom-scrollbar">
           {feedbackMessage && (
             <div
-              className={`p-3.5 rounded-xl border flex items-center gap-2.5 text-xs font-semibold ${
+              className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold ${
                 feedbackMessage.type === 'success'
                   ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
                   : 'bg-rose-950/80 border-rose-500/50 text-rose-200'
@@ -328,17 +328,17 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
           )}
 
           {activeChallenge ? (
-            <div className="space-y-5">
+            <div className="space-y-3.5">
               {/* Active SLA Countdown Banner */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-amber-500/40 flex items-center justify-between">
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                    <Clock className="w-5 h-5 animate-spin" />
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Clock className="w-4 h-4 animate-spin" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-slate-400">SLA Outage Countdown</div>
                     <div
-                      className={`text-xl font-mono font-extrabold ${
+                      className={`text-lg font-mono font-extrabold ${
                         timeLeft <= 60 ? 'text-red-400 animate-pulse' : 'text-amber-400'
                       }`}
                     >
@@ -351,7 +351,7 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
                   <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 text-xs font-bold">
                     {activeChallenge.title}
                   </span>
-                  <div className="text-[11px] text-slate-400 mt-1">
+                  <div className="text-[11px] text-slate-400 mt-0.5">
                     Difficulty:{' '}
                     <span className="text-amber-400 font-semibold">
                       {activeChallenge.difficulty}
@@ -361,21 +361,21 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
               </div>
 
               {/* Challenge Briefing */}
-              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                 <h3 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-400" />
                   Active Fault Injector Report
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-mono bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <p className="text-xs text-slate-300 leading-relaxed font-mono bg-slate-950 p-2.5 rounded-lg border border-slate-800">
                   {activeChallenge.faultInjector(devices)}
                 </p>
                 <p className="text-xs text-slate-400">{activeChallenge.description}</p>
               </div>
 
               {isCompleted ? (
-                <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
-                    <Award className="w-8 h-8" />
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400 shadow-md">
+                    <Award className="w-6 h-6" />
                   </div>
                   <h3 className="text-base font-bold text-emerald-300">
                     Incident Remediation Successful!
@@ -383,44 +383,44 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
                   <p className="text-xs text-slate-300 max-w-sm mx-auto">
                     {activeChallenge.successMessage}
                   </p>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-sm font-mono font-extrabold text-emerald-400">
-                    <Sparkles className="w-4 h-4" />
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-xs font-mono font-extrabold text-emerald-400">
+                    <Sparkles className="w-3.5 h-3.5" />
                     XP Score Earned: +{scoreEarned} PTS
                   </div>
-                  <div className="pt-2 flex justify-center gap-2">
+                  <div className="pt-1.5 flex justify-center gap-2">
                     <button
                       onClick={onExitChallenge}
-                      className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition-all cursor-pointer"
+                      className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer"
                     >
                       Choose Another Chaos Mission
                     </button>
                     <button
                       onClick={onClose}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all cursor-pointer"
                     >
                       Return to Canvas
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center gap-2.5 pt-1">
                   <button
                     onClick={onVerifyFix}
-                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-extrabold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Verify Configuration Fix & Resolve Incident
                   </button>
                   <button
                     onClick={onClose}
-                    className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
                     title="Close modal and troubleshoot on canvas"
                   >
                     Troubleshoot on Canvas
                   </button>
                   <button
                     onClick={onResetChallenge}
-                    className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
                     title="Reset Challenge"
                   >
                     <RotateCcw className="w-4 h-4" />
@@ -429,15 +429,15 @@ export const ChaosBattleModal: React.FC<ChaosBattleModalProps> = ({
               )}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                 Select Chaos Mission & Difficulty
               </span>
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {CHAOS_CHALLENGES.map((ch) => (
                   <div
                     key={ch.id}
-                    className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 hover:border-amber-500/50 transition-all flex items-center justify-between group"
+                    className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-amber-500/50 transition-all flex items-center justify-between group"
                   >
                     <div className="space-y-1 max-w-md">
                       <div className="flex items-center gap-2">

@@ -20,6 +20,9 @@ import {
   Cloud,
   Monitor,
   Cpu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RotateCcw,
 } from 'lucide-react';
 
 interface DevicePaletteProps {
@@ -28,6 +31,8 @@ interface DevicePaletteProps {
   onSelectCableType: (cable: CableType | null) => void;
   onDeleteSelected: () => void;
   onClearAll: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 // -------------------------------------------------------------------------
@@ -248,10 +253,12 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
   onSelectCableType,
   onDeleteSelected,
   onClearAll,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const [activeTab, setActiveTab] = useState<'devices' | 'cables'>('devices');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sidebarWidth, setSidebarWidth] = useState<number>(300);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(250);
   const [isResizing, setIsResizing] = useState<boolean>(false);
 
   useEffect(() => {
@@ -353,14 +360,80 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
     });
   }, [searchQuery]);
 
+  if (isCollapsed) {
+    return (
+      <aside className="w-12 bg-slate-950 border-r border-white/5 flex flex-col items-center py-2 select-none z-20 shrink-0 justify-between">
+        <div className="flex flex-col items-center gap-2">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              title="Expand Hardware Palette"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <PanelLeftOpen className="w-4 h-4 text-sky-400" />
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (onToggleCollapse) onToggleCollapse();
+              setActiveTab('devices');
+            }}
+            title="Hardware Drawers"
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'devices'
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <PlusCircle className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              if (onToggleCollapse) onToggleCollapse();
+              setActiveTab('cables');
+            }}
+            title="Cables & Media"
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'cables'
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Cable className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex flex-col items-center gap-2 pt-2 border-t border-white/10 w-full px-1">
+          <button
+            onClick={() => onSelectCableType(null)}
+            title="Select Mode"
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              !activeCableType
+                ? 'text-sky-400 bg-white/5'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <MousePointer className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDeleteSelected}
+            title="Delete Selected"
+            className="p-2 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
       style={{ width: `${sidebarWidth}px` }}
-      className="relative bg-slate-900 border-r border-slate-800 flex flex-col h-full select-none z-20 shrink-0"
+      className="relative bg-slate-950 border-r border-white/5 flex flex-col h-full select-none z-20 shrink-0"
     >
       {/* Resizer Handle */}
       <div
-        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-sky-500/60 transition-colors z-30"
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-sky-500/60 transition-colors z-30"
         onMouseDown={(e) => {
           e.preventDefault();
           setIsResizing(true);
@@ -368,37 +441,48 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
       />
 
       {/* Sidebar Header & Tab Switcher */}
-      <div className="p-2 border-b border-slate-800 bg-slate-950/40 space-y-2">
-        <div className="flex bg-slate-800/80 p-0.5 rounded-lg">
-          <button
-            onClick={() => {
-              setActiveTab('devices');
-              onSelectCableType(null);
-            }}
-            className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'devices' && !activeCableType
-                ? 'bg-sky-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            Hardware Drawers
-          </button>
-          <button
-            onClick={() => setActiveTab('cables')}
-            className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeTab === 'cables' || activeCableType
-                ? 'bg-sky-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Cable className="w-3.5 h-3.5" />
-            Cables & Media
-          </button>
+      <div className="p-2 border-b border-white/5 bg-slate-950 space-y-1.5">
+        <div className="flex items-center gap-1">
+          <div className="flex-1 flex bg-white/[0.04] p-0.5 rounded-lg border border-white/5">
+            <button
+              onClick={() => {
+                setActiveTab('devices');
+                onSelectCableType(null);
+              }}
+              className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                activeTab === 'devices' && !activeCableType
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              Hardware
+            </button>
+            <button
+              onClick={() => setActiveTab('cables')}
+              className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                activeTab === 'cables' || activeCableType
+                  ? 'bg-sky-500 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Cable className="w-3.5 h-3.5" />
+              Cables
+            </button>
+          </div>
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              title="Collapse Hardware Palette"
+              className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Universal Search Bar & Cascading Toggle */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -410,7 +494,7 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
               }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg pl-7 pr-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-md pl-7 pr-6 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors"
             />
             {searchQuery && (
               <button
@@ -424,7 +508,7 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
           <button
             onClick={toggleAllDrawers}
             title="Expand or Collapse All Drawers"
-            className="p-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/80 transition-colors cursor-pointer"
+            className="p-1.5 rounded-md bg-white/[0.03] hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-white/10 transition-colors cursor-pointer"
           >
             <ChevronsUpDown className="w-3.5 h-3.5" />
           </button>
@@ -432,7 +516,7 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 custom-scrollbar">
         {activeTab === 'devices' ? (
           /* ========================================================= */
           /* HARDWARE DRAWERS                                          */
@@ -450,72 +534,62 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
             return (
               <div
                 key={cat.key}
-                className="rounded-xl border border-slate-800/80 bg-slate-950/40 overflow-hidden shadow-sm transition-all"
+                className="group border-b border-white/5 last:border-0"
               >
                 {/* Cascading Drawer Header */}
                 <button
                   onClick={() => toggleDeviceDrawer(cat.key)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800/80 flex items-center justify-between border-b border-slate-800/60 transition-colors cursor-pointer group"
+                  className="w-full px-2 py-2 flex items-center justify-between transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <CatIcon className={`w-4 h-4 ${cat.colorClass}`} />
-                    <span className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
+                  <div className="flex items-center gap-2">
+                    <CatIcon className={`w-3.5 h-3.5 ${cat.colorClass}`} />
+                    <span className="text-xs font-semibold text-slate-300 group-hover:text-slate-100 transition-colors">
                       {cat.label}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700/60">
+                    <span className="text-[10px] font-mono text-slate-600">
                       {items.length}
                     </span>
                     {isOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform" />
+                      <ChevronDown className="w-3 h-3 text-slate-600" />
                     ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 transition-transform" />
+                      <ChevronRight className="w-3 h-3 text-slate-600" />
                     )}
                   </div>
                 </button>
 
                 {/* Drawer Body (Collapsible Cascade) */}
                 {isOpen && (
-                  <div className="p-1.5 space-y-1 bg-slate-950/20">
+                  <div className="pb-2 space-y-0.5">
                     {items.map((spec) => {
                       return (
                         <div
                           key={spec.type}
                           onClick={() => onAddDevice(spec.type)}
                           title={spec.description}
-                          className="group py-1 px-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/90 border border-slate-800/80 hover:border-sky-400/80 hover:shadow-sm transition-all cursor-pointer flex items-center justify-between gap-2 text-left"
+                          className="group py-1.5 px-2 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-between gap-2"
                         >
-                          {/* Left: Realistic Device Front Panel Thumbnail & Title */}
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="p-0.5 rounded bg-slate-950 border border-slate-800 group-hover:border-sky-500/30 group-hover:bg-sky-500/10 transition-colors shrink-0 flex items-center justify-center">
-                              <DeviceFrontPanel type={spec.type} mode="compact" />
+                          {/* Left: Device Icon & Title */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center shrink-0">
+                              <DeviceFrontPanel type={spec.type} mode="compact" animated={false} />
                             </div>
                             <div className="min-w-0">
-                              <div className="text-xs font-bold text-slate-200 group-hover:text-white truncate">
+                              <div className="text-xs font-medium text-slate-300 group-hover:text-white truncate">
                                 {spec.displayName}
-                              </div>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="text-[10px] font-mono text-slate-400">
-                                  {spec.defaultPorts.length} ports
-                                </span>
-                                {spec.tags && spec.tags.length > 0 && (
-                                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 text-slate-400 truncate max-w-[100px]">
-                                    {spec.tags[0]}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Right: Plus Action Badge */}
+                          {/* Plus Action */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onAddDevice(spec.type);
                             }}
                             title={`Add ${spec.displayName} to canvas`}
-                            className="p-0.5 rounded text-slate-400 group-hover:text-sky-300 group-hover:bg-sky-500/20 transition-all shrink-0 cursor-pointer"
+                            className="text-slate-600 group-hover:text-sky-400 transition-colors shrink-0 cursor-pointer"
                           >
                             <PlusCircle className="w-3.5 h-3.5" />
                           </button>
@@ -542,34 +616,34 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
             return (
               <div
                 key={cat.key}
-                className="rounded-xl border border-slate-800/80 bg-slate-950/40 overflow-hidden shadow-sm transition-all"
+                className="group border-b border-white/5 last:border-0"
               >
                 {/* Cascading Cable Drawer Header */}
                 <button
                   onClick={() => toggleCableDrawer(cat.key)}
-                  className="w-full px-3 py-2 bg-slate-900/90 hover:bg-slate-800/80 flex items-center justify-between border-b border-slate-800/60 transition-colors cursor-pointer group"
+                  className="w-full px-2 py-2 flex items-center justify-between transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <CatIcon className={`w-4 h-4 ${cat.colorClass}`} />
-                    <span className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
+                    <CatIcon className={`w-3.5 h-3.5 ${cat.colorClass}`} />
+                    <span className="text-xs font-semibold text-slate-300 group-hover:text-slate-100 transition-colors">
                       {cat.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700/60">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-slate-600">
                       {items.length}
                     </span>
                     {isOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform" />
+                      <ChevronDown className="w-3 h-3 text-slate-600" />
                     ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 transition-transform" />
+                      <ChevronRight className="w-3 h-3 text-slate-600" />
                     )}
                   </div>
                 </button>
 
                 {/* Drawer Body (Collapsible Cascade of Cables) */}
                 {isOpen && (
-                  <div className="p-2 space-y-1.5 bg-slate-950/20">
+                  <div className="pb-2 space-y-0.5">
                     {items.map((cable) => {
                       const isActive = activeCableType === cable.type;
                       return (
@@ -577,52 +651,19 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
                           key={cable.type}
                           onClick={() => onSelectCableType(isActive ? null : cable.type)}
                           title={cable.desc}
-                          className={`group p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 text-left ${
-                            isActive
-                              ? 'bg-sky-950/70 border-sky-400 shadow-md shadow-sky-500/10 ring-1 ring-sky-400'
-                              : 'bg-slate-900/60 hover:bg-slate-800/90 border-slate-800/80 hover:border-slate-700'
+                          className={`group py-1.5 px-2 rounded hover:bg-white/5 transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                            isActive ? 'bg-sky-500/10' : ''
                           }`}
                         >
-                          {/* Left: Cable Dot & Info */}
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="relative flex items-center justify-center p-2 rounded-lg bg-slate-950 border border-slate-800 shrink-0">
-                              <div
-                                className={`w-3.5 h-3.5 rounded-full ${cable.color} ${
-                                  cable.dash ? 'ring-2 ring-slate-900 ring-offset-1' : ''
-                                }`}
-                              />
+                            <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center shrink-0">
+                              <div className={`w-2 h-2 rounded-full ${cable.color}`} />
                             </div>
-                            <div className="min-w-0">
-                              <div
-                                className={`text-xs font-bold truncate ${
-                                  isActive ? 'text-sky-200' : 'text-slate-200 group-hover:text-white'
-                                }`}
-                              >
-                                {cable.name}
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/90 font-mono text-slate-400">
-                                  {cable.badge}
-                                </span>
-                                <span className="text-[10px] text-slate-500 truncate max-w-[130px]">
-                                  {cable.desc.substring(0, 32)}...
-                                </span>
-                              </div>
+                            <div className="text-xs font-medium text-slate-300 group-hover:text-white truncate">
+                              {cable.name}
                             </div>
                           </div>
-
-                          {/* Right: Active Checkmark or Connect Hint */}
-                          <div className="shrink-0 flex items-center">
-                            {isActive ? (
-                              <div className="w-5 h-5 rounded-full bg-sky-500 text-white flex items-center justify-center shadow-sm">
-                                <Check className="w-3 h-3 stroke-[3]" />
-                              </div>
-                            ) : (
-                              <div className="w-5 h-5 rounded-full border border-slate-700/60 group-hover:border-slate-500 flex items-center justify-center text-slate-500 group-hover:text-slate-300 transition-colors">
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-600 group-hover:bg-slate-400" />
-                              </div>
-                            )}
-                          </div>
+                          {isActive && <Check className="w-3.5 h-3.5 text-sky-400" />}
                         </div>
                       );
                     })}
@@ -634,36 +675,34 @@ export const DevicePalette: React.FC<DevicePaletteProps> = ({
         )}
       </div>
 
-      {/* Toolbar / Actions at bottom */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/60 space-y-2">
-        <div className="flex gap-2">
-          <button
-            onClick={() => onSelectCableType(null)}
-            title="Select Mode"
-            className={`flex-1 py-1.5 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-              !activeCableType
-                ? 'bg-slate-800 border-slate-600 text-sky-400'
-                : 'border-slate-800 text-slate-400 hover:bg-slate-800'
-            }`}
-          >
-            <MousePointer className="w-3.5 h-3.5" />
-            Select
-          </button>
-          <button
-            onClick={onDeleteSelected}
-            title="Delete Selected Device or Cable (Del)"
-            className="flex-1 py-1.5 px-2 rounded-lg border border-slate-800 text-rose-400 hover:bg-rose-950/40 hover:border-rose-900 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
-        </div>
-
+      {/* Toolbar / Actions at bottom - Sleek 1-Row Compact Strip */}
+      <div className="p-2 border-t border-white/5 bg-slate-950/90 flex items-center gap-1.5 shrink-0">
+        <button
+          onClick={() => onSelectCableType(null)}
+          title="Select Mode"
+          className={`flex-1 py-1.5 px-2 rounded-md border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+            !activeCableType
+              ? 'bg-white/10 border-white/15 text-sky-400'
+              : 'border-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          }`}
+        >
+          <MousePointer className="w-3.5 h-3.5" />
+          Select
+        </button>
+        <button
+          onClick={onDeleteSelected}
+          title="Delete Selected Device or Cable (Del)"
+          className="py-1.5 px-2.5 rounded-md border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 text-xs font-semibold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete
+        </button>
         <button
           onClick={onClearAll}
-          className="w-full py-1.5 px-2 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors cursor-pointer"
+          title="Clear Entire Topology Workspace"
+          className="py-1.5 px-2 rounded-md text-[11px] font-medium text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors cursor-pointer"
         >
-          Clear Workspace
+          Clear
         </button>
       </div>
     </aside>

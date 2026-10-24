@@ -1,5 +1,21 @@
-import { LabScenario, Link } from '../types/network';
+import { LabScenario, Link, Device } from '../types/network';
 import { createDevice } from '../engine/deviceSpecs';
+
+export const matchDevice = (
+  devices: Device[],
+  predicate: { name?: string; type?: Device['type']; hostname?: string }
+): Device | undefined => {
+  return (
+    devices.find((d) => {
+      if (predicate.name && d.name.toLowerCase() === predicate.name.toLowerCase()) return true;
+      if (predicate.hostname && d.config.hostname.toLowerCase() === predicate.hostname.toLowerCase()) return true;
+      if (predicate.name && d.config.hostname.toLowerCase() === predicate.name.toLowerCase()) return true;
+      if (predicate.name && d.id.toLowerCase() === predicate.name.toLowerCase()) return true;
+      return false;
+    }) ||
+    (predicate.type ? devices.find((d) => d.type === predicate.type) : undefined)
+  );
+};
 
 export const LAB_SCENARIOS: LabScenario[] = [
   {
@@ -20,6 +36,22 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Devices in the same broadcast domain must share the same network address (192.168.1.0/24).',
       'The initial ping triggers an ARP broadcast to resolve MAC addresses.',
     ],
+    solutionHints: [
+      'Open PC0 Desktop > IP Configuration and assign 192.168.1.10 / 255.255.255.0.',
+      'Open PC1 Desktop > IP Configuration and assign 192.168.1.20 / 255.255.255.0.',
+      'Open PC0 Command Prompt and verify with: ping 192.168.1.20',
+    ],
+    solutionCommands: {
+      'PC0 (Desktop IP Config)': [
+        'IP Address: 192.168.1.10',
+        'Subnet Mask: 255.255.255.0',
+        'Command Prompt: ping 192.168.1.20',
+      ],
+      'PC1 (Desktop IP Config)': [
+        'IP Address: 192.168.1.20',
+        'Subnet Mask: 255.255.255.0',
+      ],
+    },
     initialTopology: () => {
       const pc0 = createDevice('pc', 'PC0', 160, 200);
       const pc1 = createDevice('pc', 'PC1', 600, 200);
@@ -47,8 +79,8 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [pc0, sw0, pc1], links };
     },
     validate: (devices) => {
-      const pc0 = devices.find((d) => d.name === 'PC0');
-      const pc1 = devices.find((d) => d.name === 'PC1');
+      const pc0 = matchDevice(devices, { name: 'PC0', type: 'pc' });
+      const pc1 = matchDevice(devices, { name: 'PC1' }) || devices.filter((d) => d.type === 'pc')[1];
 
       const c1 = {
         name: 'PC0 configured with 192.168.1.10/24',
@@ -83,6 +115,41 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'On Switch0, configure `interface Fa0/1`: `switchport mode access`, `switchport access vlan 10`.',
       'On Switch0, configure `interface Fa0/2`: `switchport mode access`, `switchport access vlan 20`.',
     ],
+    solutionHints: [
+      'Create VLANs 10 & 20 on both switches with name attributes.',
+      'Set switchport mode trunk on Gi0/1 on both switches.',
+      'Configure access VLANs on Switch0 for Fa0/1 and Fa0/2.',
+    ],
+    solutionCommands: {
+      Switch0: [
+        'enable',
+        'configure terminal',
+        'vlan 10',
+        ' name Sales',
+        'vlan 20',
+        ' name Engineering',
+        'interface Gi0/1',
+        ' switchport mode trunk',
+        'interface Fa0/1',
+        ' switchport mode access',
+        ' switchport access vlan 10',
+        'interface Fa0/2',
+        ' switchport mode access',
+        ' switchport access vlan 20',
+        'end',
+      ],
+      Switch1: [
+        'enable',
+        'configure terminal',
+        'vlan 10',
+        ' name Sales',
+        'vlan 20',
+        ' name Engineering',
+        'interface Gi0/1',
+        ' switchport mode trunk',
+        'end',
+      ],
+    },
     initialTopology: () => {
       const sw0 = createDevice('switch', 'Switch0', 260, 200);
       const sw1 = createDevice('switch', 'Switch1', 520, 200);
@@ -119,8 +186,8 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [sw0, sw1, pc0, pc1], links };
     },
     validate: (devices) => {
-      const sw0 = devices.find((d) => d.name === 'Switch0');
-      const sw1 = devices.find((d) => d.name === 'Switch1');
+      const sw0 = matchDevice(devices, { name: 'Switch0', type: 'switch' });
+      const sw1 = matchDevice(devices, { name: 'Switch1' }) || devices.filter((d) => d.type === 'switch')[1];
 
       const c1 = {
         name: 'VLAN 10 and 20 created on Switch0',
@@ -166,6 +233,36 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Configure Switch0 Gi0/1 as trunk port.',
       'Set PC0 IP 192.168.10.10 (Gateway 192.168.10.1) and PC1 IP 192.168.20.10 (Gateway 192.168.20.1).',
     ],
+    solutionHints: [
+      'Bring up physical interface Gi0/0 with no shutdown first.',
+      'Create Gi0/0.10 with encapsulation dot1Q 10 and assign 192.168.10.1 255.255.255.0.',
+      'Create Gi0/0.20 with encapsulation dot1Q 20 and assign 192.168.20.1 255.255.255.0.',
+    ],
+    solutionCommands: {
+      Router0: [
+        'enable',
+        'configure terminal',
+        'interface Gi0/0',
+        ' no shutdown',
+        'interface Gi0/0.10',
+        ' encapsulation dot1Q 10',
+        ' ip address 192.168.10.1 255.255.255.0',
+        'interface Gi0/0.20',
+        ' encapsulation dot1Q 20',
+        ' ip address 192.168.20.1 255.255.255.0',
+        'end',
+      ],
+      'PC0 (Desktop)': [
+        'IP Address: 192.168.10.10',
+        'Subnet Mask: 255.255.255.0',
+        'Default Gateway: 192.168.10.1',
+      ],
+      'PC1 (Desktop)': [
+        'IP Address: 192.168.20.10',
+        'Subnet Mask: 255.255.255.0',
+        'Default Gateway: 192.168.20.1',
+      ],
+    },
     initialTopology: () => {
       const r0 = createDevice('router', 'Router0', 380, 80);
       const sw0 = createDevice('switch', 'Switch0', 380, 240);
@@ -207,7 +304,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [r0, sw0, pc0, pc1], links };
     },
     validate: (devices) => {
-      const r0 = devices.find((d) => d.name === 'Router0');
+      const r0 = matchDevice(devices, { name: 'Router0', type: 'router' });
       const sub10 = r0?.config.interfaces['Gi0/0.10'];
       const sub20 = r0?.config.interfaces['Gi0/0.20'];
 
@@ -249,6 +346,24 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Create and configure SVI 10: `interface Vlan10`, `ip address 10.1.10.1 255.255.255.0`, `no shutdown`.',
       'Create and configure SVI 20: `interface Vlan20`, `ip address 10.1.20.1 255.255.255.0`, `no shutdown`.',
     ],
+    solutionHints: [
+      'Enable IP routing globally on the 3650 switch using "ip routing".',
+      'Configure SVI interfaces Vlan10 and Vlan20 with their respective IPs and no shutdown.',
+    ],
+    solutionCommands: {
+      CoreSwitch3650: [
+        'enable',
+        'configure terminal',
+        'ip routing',
+        'interface Vlan10',
+        ' ip address 10.1.10.1 255.255.255.0',
+        ' no shutdown',
+        'interface Vlan20',
+        ' ip address 10.1.20.1 255.255.255.0',
+        ' no shutdown',
+        'end',
+      ],
+    },
     initialTopology: () => {
       const l3 = createDevice('l3switch', 'CoreSwitch3650', 380, 160);
       const pc0 = createDevice('pc', 'PC10', 220, 320);
@@ -279,7 +394,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [l3, pc0, pc1], links };
     },
     validate: (devices) => {
-      const l3 = devices.find((d) => d.name === 'CoreSwitch3650');
+      const l3 = matchDevice(devices, { name: 'CoreSwitch3650', type: 'l3switch' });
       const v10 = l3?.config.interfaces['Vlan10'];
       const v20 = l3?.config.interfaces['Vlan20'];
 
@@ -320,6 +435,26 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'On R2: `ip route 192.168.1.0 255.255.255.0 10.0.0.1`.',
       'Verify routing tables using `show ip route`.',
     ],
+    solutionHints: [
+      'On R1, add static route to 192.168.2.0/24 via R2 interface IP 10.0.0.2.',
+      'On R2, add return static route to 192.168.1.0/24 via R1 interface IP 10.0.0.1.',
+    ],
+    solutionCommands: {
+      R1: [
+        'enable',
+        'configure terminal',
+        'ip route 192.168.2.0 255.255.255.0 10.0.0.2',
+        'end',
+        'show ip route',
+      ],
+      R2: [
+        'enable',
+        'configure terminal',
+        'ip route 192.168.1.0 255.255.255.0 10.0.0.1',
+        'end',
+        'show ip route',
+      ],
+    },
     initialTopology: () => {
       const r1 = createDevice('router', 'R1', 260, 180);
       const r2 = createDevice('router', 'R2', 540, 180);
@@ -352,8 +487,8 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [r1, r2], links };
     },
     validate: (devices) => {
-      const r1 = devices.find((d) => d.name === 'R1');
-      const r2 = devices.find((d) => d.name === 'R2');
+      const r1 = matchDevice(devices, { name: 'R1', type: 'router' });
+      const r2 = matchDevice(devices, { name: 'R2' }) || devices.filter((d) => d.type === 'router')[1];
 
       const r1Route = r1?.config.routes.find(
         (r) => r.network === '192.168.2.0' && r.nextHop === '10.0.0.2'
@@ -394,6 +529,30 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'On R2: `router ospf 1`, `network 192.168.2.0 0.0.0.255 area 0`, `network 10.0.0.0 0.0.0.3 area 0`.',
       'Check OSPF configuration with `show running-config`.',
     ],
+    solutionHints: [
+      'Enable OSPF process 1 on both routers.',
+      'Add network statements for both the LAN and transit /30 interconnect with wildcard masks in area 0.',
+    ],
+    solutionCommands: {
+      R1: [
+        'enable',
+        'configure terminal',
+        'router ospf 1',
+        ' network 192.168.1.0 0.0.0.255 area 0',
+        ' network 10.0.0.0 0.0.0.3 area 0',
+        'end',
+        'show ip ospf neighbor',
+      ],
+      R2: [
+        'enable',
+        'configure terminal',
+        'router ospf 1',
+        ' network 192.168.2.0 0.0.0.255 area 0',
+        ' network 10.0.0.0 0.0.0.3 area 0',
+        'end',
+        'show ip ospf neighbor',
+      ],
+    },
     initialTopology: () => {
       const r1 = createDevice('router', 'R1', 260, 180);
       const r2 = createDevice('router', 'R2', 540, 180);
@@ -426,8 +585,8 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [r1, r2], links };
     },
     validate: (devices) => {
-      const r1 = devices.find((d) => d.name === 'R1');
-      const r2 = devices.find((d) => d.name === 'R2');
+      const r1 = matchDevice(devices, { name: 'R1', type: 'router' });
+      const r2 = matchDevice(devices, { name: 'R2' }) || devices.filter((d) => d.type === 'router')[1];
 
       const r1Ospf = r1?.config.ospf?.networks.some((n) => n.network.startsWith('10.0.0') && n.area === 0);
       const r2Ospf = r2?.config.ospf?.networks.some((n) => n.network.startsWith('10.0.0') && n.area === 0);
@@ -466,6 +625,24 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Specify DNS: `dns-server 8.8.8.8`.',
       'Open PC0 IP settings and toggle to "DHCP Client" to receive lease.',
     ],
+    solutionHints: [
+      'Create the DHCP pool LAN-POOL on Router0.',
+      'Configure the subnet with network 192.168.1.0 255.255.255.0 and default-router 192.168.1.1.',
+    ],
+    solutionCommands: {
+      Router0: [
+        'enable',
+        'configure terminal',
+        'ip dhcp pool LAN-POOL',
+        ' network 192.168.1.0 255.255.255.0',
+        ' default-router 192.168.1.1',
+        ' dns-server 8.8.8.8',
+        'end',
+      ],
+      'PC0 (Desktop IP Config)': [
+        'Toggle IPv4 Configuration from Static to DHCP',
+      ],
+    },
     initialTopology: () => {
       const r0 = createDevice('router', 'Router0', 380, 140);
       const sw0 = createDevice('switch', 'Switch0', 380, 260);
@@ -497,7 +674,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [r0, sw0, pc0], links };
     },
     validate: (devices) => {
-      const r0 = devices.find((d) => d.name === 'Router0');
+      const r0 = matchDevice(devices, { name: 'Router0', type: 'router' });
       const pool = r0?.config.dhcpPools ? Object.values(r0.config.dhcpPools)[0] : undefined;
 
       const c1 = {
@@ -538,6 +715,22 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Enable port security: `switchport port-security`.',
       'Set max MACs: `switchport port-security maximum 1`.',
     ],
+    solutionHints: [
+      'Enter interface Fa0/1, ensure access mode is enabled, then turn on port-security and set maximum 1.',
+    ],
+    solutionCommands: {
+      Switch0: [
+        'enable',
+        'configure terminal',
+        'interface Fa0/1',
+        ' switchport mode access',
+        ' switchport port-security',
+        ' switchport port-security maximum 1',
+        ' switchport port-security violation shutdown',
+        'end',
+        'show port-security interface Fa0/1',
+      ],
+    },
     initialTopology: () => {
       const sw0 = createDevice('switch', 'Switch0', 380, 200);
       const pc0 = createDevice('pc', 'PC0', 200, 200);
@@ -556,7 +749,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [sw0, pc0], links };
     },
     validate: (devices) => {
-      const sw0 = devices.find((d) => d.name === 'Switch0');
+      const sw0 = matchDevice(devices, { name: 'Switch0', type: 'switch' });
       const pSec = sw0?.config.interfaces['Fa0/1']?.portSecurity;
 
       const c1 = {
@@ -591,6 +784,18 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'On Switch0: `spanning-tree vlan 1 priority 4096`.',
       'Verify with `show spanning-tree` that Switch0 reports "This bridge is the root".',
     ],
+    solutionHints: [
+      'Lower Switch0 priority below the default 32768 (e.g. 4096) for VLAN 1.',
+    ],
+    solutionCommands: {
+      Switch0: [
+        'enable',
+        'configure terminal',
+        'spanning-tree vlan 1 priority 4096',
+        'end',
+        'show spanning-tree',
+      ],
+    },
     initialTopology: () => {
       const sw0 = createDevice('switch', 'Switch0', 380, 100);
       const sw1 = createDevice('switch', 'Switch1', 220, 320);
@@ -626,7 +831,7 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [sw0, sw1, sw2], links };
     },
     validate: (devices) => {
-      const sw0 = devices.find((d) => d.name === 'Switch0');
+      const sw0 = matchDevice(devices, { name: 'Switch0', type: 'switch' });
 
       const c1 = {
         name: 'Switch0 Bridge Priority set to 4096',
@@ -657,6 +862,42 @@ export const LAB_SCENARIOS: LabScenario[] = [
       'Configure Switch0 Gi0/1 as trunk port.',
       'Assign PC0 to VLAN 10 with IP 10.0.10.50 and default gateway 10.0.10.1.',
     ],
+    solutionHints: [
+      'Configure subinterface Gi0/0.10 with dot1Q 10 on Router0.',
+      'Configure Gi0/1 WAN interface on Router0 with 203.0.113.1/30 and default route via 203.0.113.2.',
+      'Set Switch0 Gi0/1 as trunk port and PC0 IP 10.0.10.50 with gateway 10.0.10.1.',
+    ],
+    solutionCommands: {
+      Router0: [
+        'enable',
+        'configure terminal',
+        'interface Gi0/0',
+        ' no shutdown',
+        'interface Gi0/0.10',
+        ' encapsulation dot1Q 10',
+        ' ip address 10.0.10.1 255.255.255.0',
+        'interface Gi0/1',
+        ' ip address 203.0.113.1 255.255.255.252',
+        ' no shutdown',
+        'ip route 0.0.0.0 0.0.0.0 203.0.113.2',
+        'end',
+      ],
+      Switch0: [
+        'enable',
+        'configure terminal',
+        'interface Gi0/1',
+        ' switchport mode trunk',
+        'interface Fa0/1',
+        ' switchport mode access',
+        ' switchport access vlan 10',
+        'end',
+      ],
+      'PC0 (Desktop)': [
+        'IP Address: 10.0.10.50',
+        'Subnet Mask: 255.255.255.0',
+        'Default Gateway: 10.0.10.1',
+      ],
+    },
     initialTopology: () => {
       const r0 = createDevice('router', 'Router0', 380, 140);
       const sw0 = createDevice('switch', 'Switch0', 220, 260);
@@ -697,8 +938,8 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [r0, sw0, pc0, srv], links };
     },
     validate: (devices) => {
-      const r0 = devices.find((d) => d.name === 'Router0');
-      const sw0 = devices.find((d) => d.name === 'Switch0');
+      const r0 = matchDevice(devices, { name: 'Router0', type: 'router' });
+      const sw0 = matchDevice(devices, { name: 'Switch0', type: 'switch' });
 
       const sub10 = r0?.config.interfaces['Gi0/0.10'];
       const defaultRoute = r0?.config.routes.find((r) => r.network === '0.0.0.0');
@@ -781,9 +1022,9 @@ export const LAB_SCENARIOS: LabScenario[] = [
       return { devices: [ciscoR1, juniperSRX, aristaSW], links };
     },
     validate: (devices) => {
-      const ciscoR1 = devices.find((d) => d.name === 'R1-Cisco');
-      const juniperSRX = devices.find((d) => d.name === 'vSRX-Juniper');
-      const aristaSW = devices.find((d) => d.name === 'SW1-Arista');
+      const ciscoR1 = matchDevice(devices, { name: 'R1-Cisco', type: 'router' });
+      const juniperSRX = matchDevice(devices, { name: 'vSRX-Juniper', type: 'juniper_vsrx' });
+      const aristaSW = matchDevice(devices, { name: 'SW1-Arista', type: 'arista_7050' });
 
       const ciscoIp = ciscoR1?.config.interfaces['Gi0/0']?.ip;
       const ciscoStatus = ciscoR1?.config.interfaces['Gi0/0']?.status;

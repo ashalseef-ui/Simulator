@@ -10,6 +10,10 @@ import {
   Loader2,
   RotateCcw,
   WifiOff,
+  Camera,
+  Network,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Device, Link } from '../types/network';
 import { generateOfflineTopology, GeneratedTopologyResult } from '../engine/offlineTopologyGenerator';
@@ -19,6 +23,7 @@ interface TextToTopologyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDeployTopology: (devices: Device[], links: Link[], title: string, mode: 'replace' | 'append') => void;
+  onSwitchToWhiteboardScanner?: () => void;
 }
 
 const INSPIRATION_PROMPTS = [
@@ -58,6 +63,7 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
   isOpen,
   onClose,
   onDeployTopology,
+  onSwitchToWhiteboardScanner,
 }) => {
   const [prompt, setPrompt] = useState('');
   const [forceOffline, setForceOffline] = useState(false);
@@ -65,6 +71,7 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [generatedResult, setGeneratedResult] = useState<GeneratedTopologyResult | null>(null);
   const [deployMode, setDeployMode] = useState<'replace' | 'append'>('replace');
+  const [showBlueprintDetails, setShowBlueprintDetails] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -134,8 +141,8 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
-          <div className="flex items-center gap-3">
+        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+          <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/20">
               <Wand2 className="w-5 h-5" />
             </div>
@@ -153,17 +160,31 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onSwitchToWhiteboardScanner && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onSwitchToWhiteboardScanner();
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Scan Whiteboard Photo</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto custom-scrollbar">
           {/* Prompt Input Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -204,6 +225,32 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
               placeholder="e.g. Build a 3-router OSPF Area 0 backbone with loopbacks and branch LAN workstations..."
               className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all resize-none font-mono"
             />
+
+            {/* Quick Keyword Injector Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                Inject Specs:
+              </span>
+              {[
+                { label: '+ OSPF Area 0', text: 'running OSPF Area 0 with loopback router IDs' },
+                { label: '+ Router-on-a-Stick', text: 'with Router-on-a-Stick 802.1Q subinterfaces for VLAN 10 and VLAN 20' },
+                { label: '+ DMZ Firewall', text: 'with a tri-homed perimeter firewall and DMZ web server' },
+                { label: '+ STP Triangle', text: 'with 3 switches in an STP redundancy triangle and primary root bridge' },
+                { label: '+ DHCP Services', text: 'with a DHCP and DNS server distributing IP leases' },
+                { label: '+ Core L3 SVIs', text: 'with a Multilayer Core switch running routed SVIs' },
+              ].map((tag, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setPrompt((prev) => (prev ? `${prev.trim()} ${tag.text}` : tag.text));
+                  }}
+                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-[10px] text-sky-300 font-mono transition-colors cursor-pointer"
+                >
+                  {tag.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Quick Inspiration Presets */}
@@ -322,6 +369,55 @@ export const TextToTopologyModal: React.FC<TextToTopologyModalProps> = ({
                   </div>
                   <div className="text-[10px] text-slate-400">Routing Gateways</div>
                 </div>
+              </div>
+
+              {/* Expandable IP & Port Blueprint */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowBlueprintDetails(!showBlueprintDetails)}
+                  className="w-full flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5 font-mono text-[11px] text-sky-300">
+                    <Network className="w-3.5 h-3.5 text-sky-400" />
+                    Inspect Allocated Subnets & Hardware Matrix
+                  </span>
+                  {showBlueprintDetails ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+
+                {showBlueprintDetails && (
+                  <div className="mt-2 p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono max-h-44 overflow-y-auto custom-scrollbar">
+                    <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                      Configured Interfaces:
+                    </div>
+                    {generatedResult.devices.map((d) => {
+                      const activeIfaces = Object.entries(d.config.interfaces).filter(
+                        ([_, iface]) => iface.ip || iface.status === 'up'
+                      );
+                      return (
+                        <div key={d.id} className="p-1.5 rounded bg-slate-900/60 border border-slate-800/80">
+                          <span className="font-bold text-white">{d.name}</span>{' '}
+                          <span className="text-[10px] text-slate-400">({d.type})</span>:
+                          {activeIfaces.length > 0 ? (
+                            <div className="pl-3 text-[11px] text-emerald-400 space-y-0.5 mt-0.5">
+                              {activeIfaces.map(([port, iface]) => (
+                                <div key={port}>
+                                  • {port}: {iface.ip ? `${iface.ip}/${iface.mask}` : 'up'}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="pl-3 text-[11px] text-slate-500">Default Layer 2</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Deployment Option */}

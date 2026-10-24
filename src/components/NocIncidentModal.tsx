@@ -228,10 +228,10 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-              <ShieldAlert className="w-5 h-5" />
+        <div className="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -290,7 +290,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -302,8 +302,8 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             {/* Sidebar list */}
             <div className="w-80 border-r border-slate-800 bg-slate-950/50 flex flex-col">
               {/* Category Filter */}
-              <div className="p-3 border-b border-slate-800">
-                <label className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block mb-1.5">
+              <div className="p-2.5 border-b border-slate-800">
+                <label className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
                   Filter Category
                 </label>
                 <select
@@ -320,7 +320,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
               </div>
 
               {/* Incidents List */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 custom-scrollbar">
                 {filteredIncidents.map((inc) => {
                   const isSelected = selectedIncidentId === inc.id;
                   const isActive = activeIncident?.id === inc.id;
@@ -331,13 +331,13 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                         setSelectedIncidentId(inc.id);
                         setVerificationResult(null);
                       }}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                         isSelected
                           ? 'bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5'
                           : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-800/80 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                           {inc.ticketId}
                         </span>
@@ -353,13 +353,13 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                           {inc.severity.split(' - ')[0]}
                         </span>
                       </div>
-                      <h4 className="text-xs font-bold text-slate-100 line-clamp-1 mb-1">
+                      <h4 className="text-xs font-bold text-slate-100 line-clamp-1 mb-0.5">
                         {inc.title}
                       </h4>
                       <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
                         {inc.summary}
                       </p>
-                      <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                         <span>{inc.category}</span>
                         {isActive && (
                           <span className="flex items-center gap-1 text-amber-400 font-bold">
@@ -375,12 +375,12 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             </div>
 
             {/* Main Detail View */}
-            <div className="flex-1 flex flex-col overflow-y-auto bg-slate-900/40 p-6">
+            <div className="flex-1 flex flex-col overflow-y-auto bg-slate-900/40 p-4 sm:p-5 custom-scrollbar">
               {/* Ticket Banner */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 mb-5 shadow-lg">
-                <div className="flex items-start justify-between gap-4">
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 mb-4 shadow-lg">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 mb-1">
                       <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                         {currentIncident.ticketId}
                       </span>
@@ -391,7 +391,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                         SLA: {currentIncident.slaMinutes}m
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">
+                    <h3 className="text-base font-bold text-white mb-1.5">
                       {currentIncident.title}
                     </h3>
                     <p className="text-xs text-slate-300 leading-relaxed">
@@ -400,33 +400,33 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                   </div>
 
                   {/* Deploy or Reset Buttons */}
-                  <div className="flex flex-col gap-2 shrink-0">
+                  <div className="flex flex-col gap-1.5 shrink-0">
                     <button
                       onClick={() => {
                         onDeployIncident(currentIncident);
                         setVerificationResult(null);
                         onClose();
                       }}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
                     >
-                      <Play className="w-4 h-4 fill-slate-950" />
+                      <Play className="w-3.5 h-3.5 fill-slate-950" />
                       Deploy Incident to Canvas
                     </button>
 
                     <button
                       onClick={handleVerify}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       Run Solution Verification
                     </button>
                   </div>
                 </div>
 
                 {/* Topology & Symptoms */}
-                <div className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <h5 className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <h5 className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <FileText className="w-3.5 h-3.5 text-amber-400" />
                       Reported Incident Symptoms
                     </h5>
@@ -598,8 +598,8 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
 
         {/* TAB 2: AI TOPOLOGY AUDITOR & HEALTH CHECK */}
         {activeTab === 'diagnostics' && (
-          <div className="flex-1 flex flex-col p-6 overflow-y-auto bg-slate-900/40">
-            <div className="flex items-center justify-between mb-6">
+          <div className="flex-1 flex flex-col p-4 sm:p-5 overflow-y-auto bg-slate-900/40 custom-scrollbar">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-base font-bold text-white">
                   Real-Time AI Topology & Configuration Auditor
@@ -612,7 +612,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
               <button
                 onClick={handleRunAiDiagnostics}
                 disabled={isDiagnosing}
-                className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-2 shadow-lg shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
+                className="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isDiagnosing ? (
                   <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
@@ -624,8 +624,8 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             </div>
 
             {isDiagnosing && (
-              <div className="flex flex-col items-center justify-center p-12 bg-slate-950/60 border border-slate-800 rounded-2xl">
-                <Loader2 className="w-8 h-8 animate-spin text-sky-400 mb-3" />
+              <div className="flex flex-col items-center justify-center p-8 bg-slate-950/60 border border-slate-800 rounded-2xl">
+                <Loader2 className="w-7 h-7 animate-spin text-sky-400 mb-2.5" />
                 <h4 className="text-sm font-bold text-white mb-1">
                   Inspecting Network Topology & Running Configurations...
                 </h4>
@@ -636,12 +636,12 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             )}
 
             {!isDiagnosing && diagnosticReport && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {/* Score & Summary Card */}
-                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 flex items-center gap-6">
-                  <div className="flex flex-col items-center justify-center w-24 h-24 rounded-2xl bg-slate-900 border border-slate-700/80 shrink-0">
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                  <div className="flex flex-col items-center justify-center w-20 h-20 rounded-xl bg-slate-900 border border-slate-700/80 shrink-0">
                     <span
-                      className={`text-2xl font-extrabold font-mono ${
+                      className={`text-xl font-extrabold font-mono ${
                         diagnosticReport.score >= 85
                           ? 'text-emerald-400'
                           : diagnosticReport.score >= 60
@@ -651,11 +651,11 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                     >
                       {diagnosticReport.score}%
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono uppercase">Health Score</span>
+                    <span className="text-[9px] text-slate-400 font-mono uppercase">Health Score</span>
                   </div>
 
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-mono font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
                         {diagnosticReport.aiGenerated ? 'GEMINI 3.8 FLASH TAC AUDIT' : 'HEURISTIC TAC ENGINE'}
                       </span>
@@ -667,13 +667,13 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                 </div>
 
                 {/* Detected Issues */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5">
-                  <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                  <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2.5 flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400" />
                     Detected Architectural & Configuration Faults ({diagnosticReport.issues.length})
                   </h4>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {diagnosticReport.issues.map((issue, idx) => (
                       <div
                         key={idx}
@@ -688,20 +688,20 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
 
                 {/* Root Cause & Remediation */}
                 {diagnosticReport.rootCauseAnalysis && (
-                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5">
-                    <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                    <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2.5 flex items-center gap-2">
                       <Layers className="w-4 h-4 text-sky-400" />
                       Protocol Layer Root Cause Analysis
                     </h4>
-                    <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+                    <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
                       {diagnosticReport.rootCauseAnalysis}
                     </p>
                   </div>
                 )}
 
                 {/* Remediation Plan */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2.5">
                     <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       Step-by-Step IOS Remediation Plan
@@ -716,11 +716,11 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {diagnosticReport.remediation.map((step, idx) => (
                       <div
                         key={idx}
-                        className="text-xs text-emerald-300 bg-emerald-950/20 border border-emerald-500/20 p-2.5 rounded-lg font-mono flex items-start justify-between gap-2"
+                        className="text-xs text-emerald-300 bg-emerald-950/20 border border-emerald-500/20 p-2 rounded-lg font-mono flex items-start justify-between gap-2"
                       >
                         <span>{step}</span>
                         <button
@@ -735,8 +735,8 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                 </div>
 
                 {/* Quick Device Jump Inspector */}
-                <div className="pt-2">
-                  <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-3">
+                <div className="pt-1">
+                  <h4 className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2">
                     Topology Devices Quick Inspector ({devices.length})
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -747,7 +747,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                           onOpenDevice(d.id);
                           onClose();
                         }}
-                        className="p-2.5 rounded-xl bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800 hover:border-sky-500/50 flex items-center justify-between text-left cursor-pointer transition-colors"
+                        className="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800 hover:border-sky-500/50 flex items-center justify-between text-left cursor-pointer transition-colors"
                       >
                         <div>
                           <div className="text-xs font-bold text-white truncate max-w-[120px]">{d.name}</div>
@@ -767,7 +767,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
         {activeTab === 'copilot' && (
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-950/40">
             {/* Quick Prompts Bar */}
-            <div className="p-3 bg-slate-950 border-b border-slate-800 flex items-center gap-2 overflow-x-auto">
+            <div className="px-3.5 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2 overflow-x-auto">
               <span className="text-[11px] font-mono text-slate-400 shrink-0">Quick Queries:</span>
               <button
                 onClick={() => handleSendChat('Analyze why OSPF neighbor adjacency is not forming in my topology.')}
@@ -796,22 +796,22 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             </div>
 
             {/* Messages Feed */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {chatMessages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`flex items-start gap-3 ${
+                  className={`flex items-start gap-2.5 ${
                     msg.role === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   {msg.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
-                      <Sparkles className="w-4 h-4" />
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                      <Sparkles className="w-3.5 h-3.5" />
                     </div>
                   )}
 
                   <div
-                    className={`max-w-2xl p-4 rounded-2xl text-xs leading-relaxed ${
+                    className={`max-w-2xl px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-indigo-600 text-white shadow-md'
                         : 'bg-slate-900 border border-slate-800 text-slate-200 shadow-md'
@@ -819,7 +819,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                   >
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                     <div
-                      className={`text-[9px] mt-1.5 font-mono ${
+                      className={`text-[9px] mt-1 font-mono ${
                         msg.role === 'user' ? 'text-indigo-200' : 'text-slate-500'
                       }`}
                     >
@@ -830,12 +830,12 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
               ))}
 
               {isChatSending && (
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   </div>
-                  <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-xs text-slate-400 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                  <div className="bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl text-xs text-slate-400 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
                     TAC Co-Pilot is analyzing configurations...
                   </div>
                 </div>
@@ -843,7 +843,7 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
             </div>
 
             {/* Input Bar */}
-            <div className="p-4 bg-slate-950 border-t border-slate-800">
+            <div className="px-4 py-2.5 bg-slate-950 border-t border-slate-800">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -856,12 +856,12 @@ export const NocIncidentModal: React.FC<NocIncidentModalProps> = ({
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask TAC Co-Pilot: 'Why did ping fail?', 'Show OSPF config', 'Explain STP BPDU flow'..."
-                  className="flex-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500"
+                  className="flex-1 bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-xl px-3.5 py-2 outline-none focus:border-indigo-500"
                 />
                 <button
                   type="submit"
                   disabled={!chatInput.trim() || isChatSending}
-                  className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors disabled:opacity-40 cursor-pointer"
+                  className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                 </button>

@@ -34,11 +34,17 @@ import {
   Shield,
   BookOpen,
   Network,
+  Tv,
 } from 'lucide-react';
+import { audioEngine } from '../utils/audioEffects';
 import { DeviceFrontPanel } from './DeviceFrontPanel';
 import { StackingView } from './StackingView';
 import { ProtocolsDashboard } from './ProtocolsDashboard';
 import { CommandReferenceModal } from './CommandReferenceModal';
+import { DesktopAppsTab } from './inspector/DesktopAppsTab';
+import { ServicesTab } from './inspector/ServicesTab';
+import { DeviceConfigTab } from './inspector/DeviceConfigTab';
+import { CliTerminalTab } from './inspector/CliTerminalTab';
 import { isValidIp } from '../utils/ipUtils';
 
 interface DeviceInspectorProps {
@@ -87,6 +93,8 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
 
   // CLI Terminal state
   const [cliSession, setCliSession] = useState<CliSession>(createCliSession());
+  const [terminalThemeMode, setTerminalThemeMode] = useState<'vendor' | 'matrix' | 'amber' | 'cyber' | 'c64'>('vendor');
+  const [showScanlines, setShowScanlines] = useState<boolean>(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>(() => {
     if (device.type === 'firewall' || device.type === 'firepower') {
       return [
@@ -138,18 +146,6 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   const [isCommandReferenceOpen, setIsCommandReferenceOpen] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Desktop tool state (for PC/Laptop)
-  const [desktopTool, setDesktopTool] = useState<'ip' | 'terminal' | 'browser'>('ip');
-  const [cmdOutput, setCmdOutput] = useState<string[]>(['WireCraft Command Prompt [Version 1.0]', 'Type "ping <ip>", "nslookup <domain>", or "help".', '']);
-  const [cmdInput, setCmdInput] = useState('');
-  const [browserUrl, setBrowserUrl] = useState('http://wirecraft.local');
-  type BrowserViewState = { kind: 'page'; title: string; body: string } | { kind: 'error'; url: string } | null;
-  const [browserView, setBrowserView] = useState<BrowserViewState>(null);
-
-  // Server DNS Record input state
-  const [newDnsDomain, setNewDnsDomain] = useState('');
-  const [newDnsIp, setNewDnsIp] = useState('');
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -217,6 +213,7 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
   // Handle CLI Command Enter
   const handleCliSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    audioEngine.playKeyClick();
     const cmd = cliInput;
     const prompt = getPrompt(device, cliSession);
     const newLines = [...terminalOutput, `${prompt} ${cmd}`];
@@ -232,6 +229,15 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
 
     if (result.output) {
       newLines.push(result.output);
+
+      // Play ping blips or buzzes if command was ping
+      if (cmd.trim().toLowerCase().startsWith('ping')) {
+        if (result.output.includes('!') || result.output.includes('Reply from') || result.output.includes('Success rate is 100') || result.output.includes('Success rate is 80')) {
+          audioEngine.playPing(true);
+        } else if (result.output.includes('.....') || result.output.includes('Request timed out') || result.output.includes('packet loss')) {
+          audioEngine.playPing(false);
+        }
+      }
     }
 
     setTerminalOutput(newLines);
@@ -239,8 +245,56 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     setCliInput('');
   };
 
-  // Handle CLI Keydown (History navigation & Tab auto-complete)
+  // Handle CLI Keydown (History navigation, Ctrl+C/Ctrl+Z breaks & Tab auto-complete)
   const handleCliKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Ctrl+C: Cancel current line or break out of config submodes
+    if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      const prompt = getPrompt(device, cliSession);
+      const isSubmode = cliSession.mode !== 'user' && cliSession.mode !== 'priv';
+      const updatedSession: CliSession = isSubmode
+        ? {
+            ...cliSession,
+            mode: 'priv',
+            currentInterface: undefined,
+            currentVlan: undefined,
+            currentAcl: undefined,
+            currentOspfProcess: undefined,
+            currentBgpAsn: undefined,
+          }
+        : cliSession;
+      setTerminalOutput((prev) => [...prev, `${prompt} ${cliInput}^C`]);
+      setCliSession(updatedSession);
+      setCliInput('');
+      return;
+    }
+
+    // Ctrl+Z: Cisco IOS end command equivalent
+    if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      const prompt = getPrompt(device, cliSession);
+      const isConfig = cliSession.mode !== 'user' && cliSession.mode !== 'priv';
+      const updatedSession: CliSession = isConfig
+        ? {
+            ...cliSession,
+            mode: 'priv',
+            currentInterface: undefined,
+            currentVlan: undefined,
+            currentAcl: undefined,
+            currentOspfProcess: undefined,
+            currentBgpAsn: undefined,
+          }
+        : cliSession;
+      const lines = [`${prompt} ${cliInput}^Z`];
+      if (isConfig) {
+        lines.push('%SYS-5-CONFIG_I: Configured from console by console');
+      }
+      setTerminalOutput((prev) => [...prev, ...lines]);
+      setCliSession(updatedSession);
+      setCliInput('');
+      return;
+    }
+
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (cliSession.history.length > 0) {
@@ -550,228 +604,6 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
     }
   };
 
-  // PC/Laptop Desktop Command Prompt handler
-  const handleCmdSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cmd = cmdInput.trim();
-    if (!cmd) return;
-
-    const out = [...cmdOutput, `C:\\> ${cmd}`];
-    const lower = cmd.toLowerCase();
-
-    if (lower.startsWith('ping')) {
-      const parts = cmd.split(/\s+/);
-      const target = parts[1];
-      if (target) {
-        let targetIp = target;
-        let dnsResolvedMsg = '';
-
-        if (!isValidIp(target)) {
-          // Look up domain across all DNS servers in topology
-          let resolved: string | undefined;
-          for (const d of allDevices) {
-            if (d.type === 'server' && d.config.services?.dns?.enabled) {
-              const rec = d.config.services.dns.records?.find((r) => r.domain.toLowerCase() === target.toLowerCase());
-              if (rec?.ip) {
-                resolved = rec.ip;
-                break;
-              }
-            }
-          }
-          if (resolved) {
-            targetIp = resolved;
-            dnsResolvedMsg = `Pinging ${target} [${targetIp}] with 32 bytes of data:`;
-          } else {
-            out.push(`Ping request could not find host ${target}. Please check the name and try again.`);
-            setCmdOutput(out);
-            setCmdInput('');
-            return;
-          }
-        } else {
-          dnsResolvedMsg = `Pinging ${target} with 32 bytes of data:`;
-        }
-
-        onRunPingSim(device.id, targetIp);
-        out.push(dnsResolvedMsg);
-        out.push(`Reply from ${targetIp}: bytes=32 time=2ms TTL=128`);
-        out.push(`Reply from ${targetIp}: bytes=32 time=1ms TTL=128`);
-        out.push(`Reply from ${targetIp}: bytes=32 time=2ms TTL=128`);
-        out.push(`Reply from ${targetIp}: bytes=32 time=1ms TTL=128`);
-        out.push(`Ping statistics for ${targetIp}: Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)`);
-      } else {
-        out.push('Usage: ping <destination_ip_or_domain>');
-      }
-    } else if (lower === 'ipconfig' || lower === 'ipconfig /all') {
-      const iface = Object.values(device.config.interfaces)[0];
-      out.push('Windows IP Configuration\n');
-      out.push('Ethernet adapter FastEthernet0/0:');
-      out.push(`   Connection-specific DNS Suffix  . : localdomain`);
-      out.push(`   Physical Address. . . . . . . . . : ${iface?.mac || '00-1C-B1-00-00-01'}`);
-      out.push(`   DHCP Enabled. . . . . . . . . . . : ${iface?.ip ? 'No' : 'Yes'}`);
-      out.push(`   IPv4 Address. . . . . . . . . . . : ${iface?.ip || '0.0.0.0'}`);
-      out.push(`   Subnet Mask . . . . . . . . . . . : ${iface?.mask || '0.0.0.0'}`);
-      out.push(`   Default Gateway . . . . . . . . . : ${device.config.defaultGateway || '0.0.0.0'}`);
-      out.push(`   DNS Server. . . . . . . . . . . . : ${device.config.dnsServer || '0.0.0.0'}`);
-    } else if (lower === 'ipconfig /renew') {
-      onRunDhcpSim(device.id);
-      out.push('Renewing IP address from DHCP server...');
-      out.push('DHCP Discover sent -> DHCP Offer received -> DHCP Request -> DHCP ACK.');
-      out.push('IP address successfully leased.');
-    } else if (lower === 'ipconfig /release') {
-      const iface = Object.values(device.config.interfaces)[0];
-      if (iface) {
-        iface.ip = '';
-        iface.mask = '';
-      }
-      device.config.defaultGateway = '';
-      onUpdateDeviceConfig(device.id, { ...device.config });
-      out.push('IP address for adapter FastEthernet0/0 has been released.');
-    } else if (lower === 'ipconfig /displaydns') {
-      out.push('Windows IP Configuration - DNS Resolver Cache:\n');
-      let recordsFound = false;
-      for (const d of allDevices) {
-        if (d.type === 'server' && d.config.services?.dns?.enabled) {
-          d.config.services.dns.records?.forEach((r) => {
-            recordsFound = true;
-            out.push(`    Record Name . . . . . : ${r.domain}`);
-            out.push(`    Record Type . . . . . : 1 (A)`);
-            out.push(`    Time To Live  . . . . : 3600`);
-            out.push(`    Data Length . . . . . : 4`);
-            out.push(`    Section . . . . . . . : Answer`);
-            out.push(`    A (IPv4) Record . . . : ${r.ip}\n`);
-          });
-        }
-      }
-      if (!recordsFound) {
-        out.push('    Record Name . . . . . : wirecraft.local');
-        out.push('    A (IPv4) Record . . . : 192.168.1.10');
-      }
-    } else if (lower === 'ipconfig /flushdns') {
-      out.push('Windows IP Configuration\n\nSuccessfully flushed the DNS Resolver Cache.');
-    } else if (lower.startsWith('tracert') || lower.startsWith('traceroute')) {
-      const parts = cmd.split(/\s+/);
-      const target = parts[1] || '8.8.8.8';
-      out.push(`Tracing route to ${target} over a maximum of 30 hops:\n`);
-      out.push(`  1     1 ms     1 ms     1 ms  ${device.config.defaultGateway || '192.168.1.1'}`);
-      out.push(`  2     3 ms     2 ms     3 ms  ${target}`);
-      out.push('\nTrace complete.');
-    } else if (lower.startsWith('nslookup')) {
-      const parts = cmd.split(/\s+/);
-      const domain = parts[1] || 'wirecraft.local';
-      const activeDnsServer = device.config.dnsServer || '192.168.1.10';
-
-      out.push(`Server:  ns1.wirecraft.lab`);
-      out.push(`Address: ${activeDnsServer}\n`);
-
-      // Search all servers in network topology
-      let resolvedIp: string | undefined;
-      for (const d of allDevices) {
-        if (d.type === 'server' && d.config.services?.dns?.enabled) {
-          const record = d.config.services.dns.records?.find((r) => r.domain.toLowerCase() === domain.toLowerCase());
-          if (record) {
-            resolvedIp = record.ip;
-            break;
-          }
-        }
-      }
-
-      if (resolvedIp) {
-        out.push(`Name:    ${domain}`);
-        out.push(`Address: ${resolvedIp}`);
-      } else {
-        out.push(`*** ns1.wirecraft.lab can't find ${domain}: Non-existent domain`);
-      }
-    } else if (lower.startsWith('arp')) {
-      if (lower.includes('-d')) {
-        out.push('[OK] ARP cache table flushed.');
-      } else {
-        out.push('Interface: 192.168.1.50 --- 0x2');
-        out.push('  Internet Address      Physical Address      Type');
-        out.push(`  ${device.config.defaultGateway || '192.168.1.1'}          00-1c-b1-a0-00-01     dynamic`);
-      }
-    } else if (lower.startsWith('netstat')) {
-      out.push('Active Connections\n');
-      out.push('  Proto  Local Address          Foreign Address        State');
-      out.push('  TCP    192.168.1.50:49152     192.168.1.10:80        ESTABLISHED');
-    } else if (lower.startsWith('route print')) {
-      out.push('IPv4 Route Table\n===========================================================================');
-      out.push('Network Destination        Netmask          Gateway       Interface  Metric');
-      out.push(`          0.0.0.0          0.0.0.0  ${(device.config.defaultGateway || '192.168.1.1').padEnd(15)}    192.168.1.50      25`);
-      out.push('        127.0.0.1  255.255.255.255        On-link         127.0.0.1     306');
-    } else if (lower.startsWith('ssh')) {
-      const parts = cmd.split(/\s+/);
-      const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
-      out.push(`Connecting to SSH host at ${target}:22...`);
-      out.push(`SSH banner received: WireCraft IOS-Compatible Engine, Version 15.4(3)M2`);
-      out.push(`Password: [Enter VTY password in device terminal]`);
-    } else if (lower.startsWith('telnet')) {
-      const parts = cmd.split(/\s+/);
-      const target = parts.find((p) => isValidIp(p)) || '192.168.1.1';
-      out.push(`Trying ${target}... Open`);
-      out.push(`User Access Verification`);
-      out.push(`Password: `);
-    } else if (lower.startsWith('curl') || lower.startsWith('wget') || lower.startsWith('http')) {
-      out.push('HTTP/1.1 200 OK\nContent-Type: text/html\nServer: WireCraft Linux Web Engine\n\n<html><body><h1>WireCraft Web Portal</h1><p>Connection Successful</p></body></html>');
-    } else if (lower === 'hostname') {
-      out.push(device.config.hostname || device.name);
-    } else if (lower === 'whoami') {
-      out.push('wirecraft-user\\admin');
-    } else if (lower === 'systeminfo') {
-      out.push(`Host Name:                 ${device.config.hostname || device.name}\nOS Name:                   WireCraft Workstation OS v10.0\nSystem Type:               x64-based PC\nNetwork Card(s):           1 NIC(s) Installed.\n                           [01]: FastEthernet0/0 - Status: Connected`);
-    } else if (lower === 'cls' || lower === 'clear') {
-      setCmdOutput([]);
-      setCmdInput('');
-      return;
-    } else if (lower === 'help' || lower === '?') {
-      out.push('Available Desktop & Command Prompt Commands:');
-      out.push('  ping <ip>            - Send ICMP echo requests');
-      out.push('  ipconfig [/all]      - Display IP configuration');
-      out.push('  ipconfig /renew      - Lease IP from DHCP server');
-      out.push('  ipconfig /release    - Release current IP lease');
-      out.push('  ipconfig /displaydns - Display DNS cache entries');
-      out.push('  ipconfig /flushdns   - Flush DNS resolver cache');
-      out.push('  tracert <ip>         - Trace network route');
-      out.push('  nslookup <domain>    - Query DNS server');
-      out.push('  arp -a / arp -d *    - Display or flush ARP resolution table');
-      out.push('  netstat [-a]         - Display active network connections');
-      out.push('  route print          - Display local routing table');
-      out.push('  ssh [-l user] <ip>   - Connect via Secure Shell');
-      out.push('  telnet <ip> [port]   - Connect via Telnet');
-      out.push('  curl <url>           - Fetch HTTP payload');
-      out.push('  hostname / whoami    - Display workstation identity');
-      out.push('  systeminfo           - Display hardware and network summary');
-      out.push('  cls                  - Clear screen');
-    } else {
-      out.push(`'${cmd}' is not recognized as an internal or external command. Type 'help' for available commands.`);
-    }
-
-    setCmdOutput(out);
-    setCmdInput('');
-  };
-
-  // PC Web Browser go
-  const handleBrowserNavigate = () => {
-    const cleanUrl = browserUrl.replace(/^https?:\/\//, '');
-    // Check if target matches any server HTTP service
-    let foundServer: Device | undefined;
-    for (const d of allDevices) {
-      if (d.type === 'server' && d.config.services?.http?.enabled) {
-        for (const iface of Object.values(d.config.interfaces)) {
-          if (iface.ip === cleanUrl) foundServer = d;
-        }
-        // Also check server DNS records
-        const dnsMatch = d.config.services?.dns?.records?.some((r) => r.domain === cleanUrl);
-        if (dnsMatch) foundServer = d;
-      }
-    }
-
-    if (foundServer?.config.services?.http) {
-      const h = foundServer.config.services.http;
-      setBrowserView({ kind: 'page', title: h.title, body: h.body });
-    } else {
-      setBrowserView({ kind: 'error', url: browserUrl });
-    }
-  };
 
   // AI Device Troubleshooter
   const [aiAdvisorTip, setAiAdvisorTip] = useState<string | null>(null);
@@ -826,108 +658,108 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
       {/* Draggable Title Bar */}
       <div
         onMouseDown={handleHeaderMouseDown}
-        className="h-10 bg-slate-950 px-3 flex items-center justify-between border-b border-slate-800 cursor-move"
+        className="h-9 bg-slate-950/90 px-3 flex items-center justify-between border-b border-white/5 cursor-move"
       >
         {/* Device Name & Icon */}
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-          <span className="text-xs font-bold text-slate-200">
-            {device.config.hostname || device.name} ({spec.displayName})
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span className="text-[11px] font-bold text-slate-200">
+            {device.config.hostname || device.name}
           </span>
         </div>
 
         {/* Tab Switchers */}
-        <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+        <div className="flex items-center bg-white/[0.04] p-0.5 rounded-md border border-white/5">
           <button
             onClick={() => setActiveTab('physical')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors cursor-pointer ${
+            className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors cursor-pointer ${
               activeTab === 'physical'
-                ? 'bg-sky-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-sky-500 text-white'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
-            <Box className="w-3.5 h-3.5" />
-            Physical
+            <Box className="w-3 h-3" />
+            Phys
           </button>
 
           {spec.supportsCli && (
             <button
               onClick={() => setActiveTab('cli')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
                 activeTab === 'cli'
                   ? 'bg-sky-500 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
               }`}
             >
-              <Terminal className="w-3.5 h-3.5" />
+              <Terminal className="w-3 h-3" />
               CLI
             </button>
           )}
 
           <button
             onClick={() => setActiveTab('config')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+            className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
               activeTab === 'config'
                 ? 'bg-sky-500 text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
-            <Settings className="w-3.5 h-3.5" />
-            Config
+            <Settings className="w-3 h-3" />
+            Conf
           </button>
 
           {spec.supportsDesktop && (
             <button
               onClick={() => setActiveTab('desktop')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
                 activeTab === 'desktop'
                   ? 'bg-sky-500 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
               }`}
             >
-              <Monitor className="w-3.5 h-3.5" />
-              Desktop
+              <Monitor className="w-3 h-3" />
+              Desk
             </button>
           )}
 
           {spec.supportsServices && (
             <button
               onClick={() => setActiveTab('services')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
                 activeTab === 'services'
                   ? 'bg-purple-500 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
               }`}
             >
-              <Server className="w-3.5 h-3.5" />
-              Services
+              <Server className="w-3 h-3" />
+              Serv
             </button>
           )}
 
           {isSwitchDevice && (
             <button
               onClick={() => setActiveTab('stacking')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
                 activeTab === 'stacking'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
-              StackWise
+              <Layers className="w-3 h-3" />
+              Stack
             </button>
           )}
 
           <button
             onClick={() => setActiveTab('protocols')}
-            className={`px-2.5 py-1 text-xs font-semibold rounded flex items-center gap-1.5 transition-colors ${
+            className={`px-2 py-0.5 text-[10px] font-semibold rounded flex items-center gap-1 transition-colors ${
               activeTab === 'protocols'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
-            <Network className="w-3.5 h-3.5" />
-            Protocols
+            <Network className="w-3 h-3" />
+            Prot
           </button>
         </div>
 
@@ -990,1202 +822,56 @@ export const DeviceInspector: React.FC<DeviceInspectorProps> = ({
         )}
 
         {/* TAB 1: UNIVERSAL MULTI-VENDOR CLI TERMINAL */}
-        {activeTab === 'cli' && (() => {
-          const currentOs: NetworkOsType = device.config.networkOs || 'cisco-ios';
-          const terminalTheme: Record<NetworkOsType, { text: string; prompt: string; bg: string }> = {
-            'cisco-ios': { text: 'text-emerald-300', prompt: 'text-emerald-400', bg: 'bg-black' },
-            'juniper-junos': { text: 'text-teal-200', prompt: 'text-teal-400', bg: 'bg-slate-950' },
-            'arista-eos': { text: 'text-sky-200', prompt: 'text-sky-400', bg: 'bg-black' },
-            'linux-vyos': { text: 'text-amber-200', prompt: 'text-amber-400', bg: 'bg-black' },
-            'mikrotik-routeros': { text: 'text-rose-200', prompt: 'text-rose-400', bg: 'bg-neutral-950' },
-          };
-          const theme = terminalTheme[currentOs] || terminalTheme['cisco-ios'];
-          return (
-            <div
-              className={`flex-1 flex flex-col p-3 font-mono text-xs overflow-hidden ${theme.bg} ${theme.text}`}
-              onClick={() => inputRef.current?.focus()}
-            >
-              {/* Terminal Mini Action Toolbar */}
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-900 select-none">
-                <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                  {/* Multi-Vendor NOS Selector */}
-                  <div className="flex items-center gap-1.5 bg-slate-900/90 px-2 py-0.5 rounded-lg border border-slate-800">
-                    <span className="text-[10px] text-slate-400 font-semibold">NOS:</span>
-                    <select
-                      value={currentOs}
-                      onChange={(e) => {
-                        const newOs = e.target.value as NetworkOsType;
-                        const updated = { ...device.config, networkOs: newOs };
-                        onUpdateDeviceConfig(device.id, updated);
-                        const prof = VENDOR_OS_PROFILES[newOs];
-                        setTerminalOutput((prev) => [
-                          ...prev,
-                          `\n[System: Switching Network OS Dialect to ${prof.name}]`,
-                          prof.banner,
-                          ``,
-                        ]);
-                      }}
-                      className="bg-transparent text-[10px] font-bold text-sky-400 outline-none cursor-pointer"
-                    >
-                      <option value="cisco-ios" className="bg-slate-900 text-white">Cisco IOS / IOS-XE</option>
-                      <option value="juniper-junos" className="bg-slate-900 text-white">Juniper Junos OS</option>
-                      <option value="arista-eos" className="bg-slate-900 text-white">Arista EOS</option>
-                      <option value="linux-vyos" className="bg-slate-900 text-white">Linux / VyOS</option>
-                      <option value="mikrotik-routeros" className="bg-slate-900 text-white">MikroTik RouterOS</option>
-                    </select>
-                  </div>
-
-                  <span className="text-slate-600">|</span>
-                  <span>{device.config.hostname || device.name}</span>
-                  {cliSession.debugFlags?.icmp && (
-                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
-                      DEBUG: ICMP ON
-                    </span>
-                  )}
-                  {cliSession.debugFlags?.ospfEvents && (
-                    <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">
-                      DEBUG: OSPF ON
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRequestAiDeviceAudit();
-                    }}
-                    disabled={isAdvisorLoading}
-                    className="px-2 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1 border border-indigo-500/40 cursor-pointer disabled:opacity-50"
-                    title="Ask Gemini TAC to audit this device configuration"
-                  >
-                    {isAdvisorLoading ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3 h-3 text-indigo-400" />
-                    )}
-                    AI TAC Assist
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsCommandReferenceOpen(true);
-                    }}
-                    className="px-2 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-[10px] font-bold flex items-center gap-1 border border-sky-500/40 cursor-pointer"
-                    title="Open Multi-Vendor CLI Rosetta Stone & Command Reference"
-                  >
-                    <BookOpen className="w-3 h-3 text-sky-400" />
-                    CLI Matrix
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const cfg = generateRunningConfig(device);
-                      navigator.clipboard.writeText(cfg);
-                    }}
-                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
-                    title="Copy Running Configuration"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const prof = VENDOR_OS_PROFILES[currentOs];
-                      setTerminalOutput([
-                        prof.banner,
-                        ``,
-                      ]);
-                    }}
-                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-900 cursor-pointer"
-                    title="Clear Terminal Screen"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* AI Advisor Response Drawer */}
-              {aiAdvisorTip && (
-                <div className="mb-2 p-2.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-indigo-200 text-[11px] leading-relaxed relative font-sans">
-                  <div className="flex items-center justify-between mb-1 font-bold text-indigo-300 flex items-center gap-1">
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                      AI TAC Diagnostic Advice
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAiAdvisorTip(null);
-                      }}
-                      className="text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="whitespace-pre-wrap">{aiAdvisorTip}</div>
-                </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar pr-1">
-                {terminalOutput.map((line, idx) => (
-                  <div key={idx} className="whitespace-pre-wrap leading-tight">
-                    {line}
-                  </div>
-                ))}
-                <div ref={terminalEndRef} />
-              </div>
-
-              {/* Input Line with Realistic Multi-Vendor Prompt */}
-              <form onSubmit={handleCliSubmit} className="flex items-center mt-2 pt-1 border-t border-slate-900">
-                <span className={`${theme.prompt} font-bold mr-1.5 select-none whitespace-pre`}>
-                  {getPrompt(device, cliSession)}
-                </span>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={cliInput}
-                  onChange={(e) => setCliInput(e.target.value)}
-                  onKeyDown={handleCliKeyDown}
-                  className={`flex-1 bg-transparent ${theme.text} outline-none font-mono text-xs`}
-                  autoFocus
-                  spellCheck={false}
-                />
-              </form>
-            </div>
-          );
-        })()}
+        {activeTab === 'cli' && (
+          <CliTerminalTab
+            device={device}
+            cliSession={cliSession}
+            terminalThemeMode={terminalThemeMode}
+            setTerminalThemeMode={setTerminalThemeMode}
+            showScanlines={showScanlines}
+            setShowScanlines={setShowScanlines}
+            terminalOutput={terminalOutput}
+            setTerminalOutput={setTerminalOutput}
+            cliInput={cliInput}
+            setCliInput={setCliInput}
+            inputRef={inputRef}
+            terminalEndRef={terminalEndRef}
+            onUpdateDeviceConfig={onUpdateDeviceConfig}
+            onOpenCommandReference={() => setIsCommandReferenceOpen(true)}
+            onRequestAiAudit={handleRequestAiDeviceAudit}
+            isAdvisorLoading={isAdvisorLoading}
+            aiAdvisorTip={aiAdvisorTip}
+            onDismissAiAdvisorTip={() => setAiAdvisorTip(null)}
+            onSubmit={handleCliSubmit}
+            onKeyDown={handleCliKeyDown}
+          />
+        )}
 
         {/* TAB 2: CONFIGURATION GUI */}
         {activeTab === 'config' && (
-          <div className="flex-1 p-4 overflow-y-auto space-y-4 text-slate-200 custom-scrollbar">
-            {/* General Settings */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
-              <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                System Global Settings
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    value={device.name}
-                    disabled
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-400 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">
-                    IOS Hostname
-                  </label>
-                  <input
-                    type="text"
-                    value={device.config.hostname}
-                    onChange={(e) =>
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        hostname: e.target.value,
-                      })
-                    }
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono"
-                  />
-                </div>
-              </div>
-
-              {(device.type === 'router' || device.type === 'l3switch') && (
-                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                  <span className="text-xs text-slate-300">
-                    IP Routing (Layer 3 Forwarding)
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={!!device.config.ipRoutingEnabled}
-                    onChange={(e) =>
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        ipRoutingEnabled: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded text-sky-500 bg-slate-950 border-slate-700"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Interfaces List & Configuration */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                  Interface Configurations & Port Settings
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono">
-                  {Object.keys(device.config.interfaces).length} Port{Object.keys(device.config.interfaces).length === 1 ? '' : 's'}
-                </div>
-              </div>
-              <div className="space-y-3">
-                {Object.entries(device.config.interfaces).map(([portName, iface]) => {
-                  const isSwitch =
-                    device.type === 'switch' ||
-                    device.type === 'switch2960_48' ||
-                    device.type === 'switch3560' ||
-                    device.type === 'switch3850' ||
-                    device.type === 'switch9300' ||
-                    device.type === 'l3switch' ||
-                    device.type === 'nexus9000';
-                  const isL3Switch =
-                    device.type === 'switch3560' ||
-                    device.type === 'switch3850' ||
-                    device.type === 'switch9300' ||
-                    device.type === 'l3switch';
-
-                  return (
-                    <div
-                      key={portName}
-                      className="p-3 bg-slate-950 rounded-lg border border-slate-800/80 space-y-2.5"
-                    >
-                      {/* Port Header & Basic State */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full ${
-                              iface.status === 'up' ? 'bg-emerald-400 ring-2 ring-emerald-500/20' : 'bg-rose-500 ring-2 ring-rose-500/20'
-                            }`}
-                          />
-                          <span className="text-xs font-bold font-mono text-slate-200">
-                            {portName}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            ({iface.speed || 100} Mbps)
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
-                            MAC: {iface.mac}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">Port Admin:</span>
-                          <button
-                            onClick={() => {
-                              const newIfaces = { ...device.config.interfaces };
-                              newIfaces[portName] = {
-                                ...iface,
-                                status: iface.status === 'up' ? 'down' : 'up',
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: newIfaces,
-                              });
-                            }}
-                            className={`px-2.5 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                              iface.status === 'up'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30'
-                            }`}
-                          >
-                            {iface.status.toUpperCase()}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Port Speed, Duplex & Optional Description */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-900/80">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">
-                            Port Speed
-                          </label>
-                          <select
-                            value={iface.speed || 100}
-                            onChange={(e) => {
-                              const newIfaces = { ...device.config.interfaces };
-                              newIfaces[portName] = {
-                                ...iface,
-                                speed: parseInt(e.target.value, 10),
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: newIfaces,
-                              });
-                            }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                          >
-                            <option value={10}>10 Mbps (Ethernet)</option>
-                            <option value={100}>100 Mbps (FastEthernet)</option>
-                            <option value={1000}>1000 Mbps (Gigabit)</option>
-                            <option value={10000}>10 Gbps (TenGigabit)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">
-                            Duplex Mode
-                          </label>
-                          <select
-                            value={iface.duplex || 'auto'}
-                            onChange={(e) => {
-                              const newIfaces = { ...device.config.interfaces };
-                              newIfaces[portName] = {
-                                ...iface,
-                                duplex: e.target.value as any,
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: newIfaces,
-                              });
-                            }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                          >
-                            <option value="auto">Auto-Negotiate</option>
-                            <option value="full">Full Duplex</option>
-                            <option value="half">Half Duplex</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">
-                            Description
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Uplink to Core"
-                            value={iface.description || ''}
-                            onChange={(e) => {
-                              const newIfaces = { ...device.config.interfaces };
-                              newIfaces[portName] = {
-                                ...iface,
-                                description: e.target.value,
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: newIfaces,
-                              });
-                            }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                          />
-                        </div>
-                      </div>
-
-                      {/* IP Configuration (if routed device, SVI, or L3 routed port) */}
-                      {(!isSwitch || iface.mode === 'routed' || portName.toLowerCase().startsWith('vlan')) && (
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-900/80">
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">
-                              IPv4 Address
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. 192.168.1.1"
-                              value={iface.ip || ''}
-                              onChange={(e) => {
-                                const newIfaces = { ...device.config.interfaces };
-                                newIfaces[portName] = {
-                                  ...iface,
-                                  ip: e.target.value,
-                                };
-                                onUpdateDeviceConfig(device.id, {
-                                  ...device.config,
-                                  interfaces: newIfaces,
-                                });
-                              }}
-                              className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">
-                              Subnet Mask
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. 255.255.255.0"
-                              value={iface.mask || ''}
-                              onChange={(e) => {
-                                const newIfaces = { ...device.config.interfaces };
-                                newIfaces[portName] = {
-                                  ...iface,
-                                  mask: e.target.value,
-                                };
-                                onUpdateDeviceConfig(device.id, {
-                                  ...device.config,
-                                  interfaces: newIfaces,
-                                });
-                              }}
-                              className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Switchport VLAN & Trunk Configuration */}
-                      {isSwitch && (
-                        <div className="space-y-2 pt-1 border-t border-slate-900/80">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="text-[10px] text-slate-400 block mb-0.5">
-                                Switchport Mode
-                              </label>
-                              <select
-                                value={iface.mode || 'access'}
-                                onChange={(e) => {
-                                  const newIfaces = { ...device.config.interfaces };
-                                  newIfaces[portName] = {
-                                    ...iface,
-                                    mode: e.target.value as any,
-                                  };
-                                  onUpdateDeviceConfig(device.id, {
-                                    ...device.config,
-                                    interfaces: newIfaces,
-                                  });
-                                }}
-                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                              >
-                                <option value="access">Access</option>
-                                <option value="trunk">Trunk (802.1Q)</option>
-                                {isL3Switch && (
-                                  <option value="routed">Routed (No Switchport / L3 IP)</option>
-                                )}
-                              </select>
-                            </div>
-
-                            {/* Access Mode Settings */}
-                            {(!iface.mode || iface.mode === 'access') && (
-                              <div>
-                                <label className="text-[10px] text-slate-400 block mb-0.5">
-                                  Access VLAN ID (1-4094)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="4094"
-                                  value={iface.accessVlan || 1}
-                                  onChange={(e) => {
-                                    const newIfaces = { ...device.config.interfaces };
-                                    newIfaces[portName] = {
-                                      ...iface,
-                                      accessVlan: parseInt(e.target.value, 10) || 1,
-                                    };
-                                    onUpdateDeviceConfig(device.id, {
-                                      ...device.config,
-                                      interfaces: newIfaces,
-                                    });
-                                  }}
-                                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                                />
-                              </div>
-                            )}
-
-                            {/* Trunk Mode Settings - Native VLAN */}
-                            {iface.mode === 'trunk' && (
-                              <div>
-                                <label className="text-[10px] text-slate-400 block mb-0.5">
-                                  Native VLAN (Untagged)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max="4094"
-                                  value={iface.nativeVlan || 1}
-                                  onChange={(e) => {
-                                    const newIfaces = { ...device.config.interfaces };
-                                    newIfaces[portName] = {
-                                      ...iface,
-                                      nativeVlan: parseInt(e.target.value, 10) || 1,
-                                    };
-                                    onUpdateDeviceConfig(device.id, {
-                                      ...device.config,
-                                      interfaces: newIfaces,
-                                    });
-                                  }}
-                                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                                  placeholder="Default 1"
-                                />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Trunk Allowed VLANs */}
-                          {iface.mode === 'trunk' && (
-                            <div>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[10px] text-slate-400">
-                                  Trunk Allowed VLANs (comma-separated, e.g. 10,20,30 or blank for ALL)
-                                </label>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newIfaces = { ...device.config.interfaces };
-                                    newIfaces[portName] = {
-                                      ...iface,
-                                      trunkAllowedVlans: undefined,
-                                    };
-                                    onUpdateDeviceConfig(device.id, {
-                                      ...device.config,
-                                      interfaces: newIfaces,
-                                    });
-                                  }}
-                                  className="text-[9px] text-sky-400 hover:text-sky-300"
-                                >
-                                  Allow All (1-4094)
-                                </button>
-                              </div>
-                              <input
-                                type="text"
-                                placeholder="1,10,20,99 (empty = all VLANs allowed)"
-                                value={iface.trunkAllowedVlans ? iface.trunkAllowedVlans.join(', ') : ''}
-                                onChange={(e) => {
-                                  const raw = e.target.value;
-                                  const vlans = raw
-                                    .split(',')
-                                    .map((s) => parseInt(s.trim(), 10))
-                                    .filter((n) => !isNaN(n) && n >= 1 && n <= 4094);
-                                  const newIfaces = { ...device.config.interfaces };
-                                  newIfaces[portName] = {
-                                    ...iface,
-                                    trunkAllowedVlans: raw.trim() === '' ? undefined : vlans,
-                                  };
-                                  onUpdateDeviceConfig(device.id, {
-                                    ...device.config,
-                                    interfaces: newIfaces,
-                                  });
-                                }}
-                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                              />
-                            </div>
-                          )}
-
-                          {/* Port Security Configuration for Access Ports */}
-                          {iface.mode !== 'trunk' && iface.mode !== 'routed' && (
-                            <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800/80 space-y-2 mt-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <Shield className="w-3.5 h-3.5 text-amber-400" />
-                                  <span className="text-[11px] font-semibold text-slate-300">
-                                    Port Security
-                                  </span>
-                                </div>
-                                <label className="flex items-center gap-2 cursor-pointer text-[10px] text-slate-300">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!iface.portSecurity?.enabled}
-                                    onChange={(e) => {
-                                      const newIfaces = { ...device.config.interfaces };
-                                      newIfaces[portName] = {
-                                        ...iface,
-                                        portSecurity: e.target.checked
-                                          ? {
-                                              enabled: true,
-                                              maxMacs: iface.portSecurity?.maxMacs || 1,
-                                              violation: iface.portSecurity?.violation || 'shutdown',
-                                              stickyMacs: iface.portSecurity?.stickyMacs || [],
-                                            }
-                                          : undefined,
-                                      };
-                                      onUpdateDeviceConfig(device.id, {
-                                        ...device.config,
-                                        interfaces: newIfaces,
-                                      });
-                                    }}
-                                    className="w-3.5 h-3.5 rounded text-sky-500 bg-slate-950 border-slate-700"
-                                  />
-                                  <span>Enabled</span>
-                                </label>
-                              </div>
-
-                              {iface.portSecurity?.enabled && (
-                                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 block mb-0.5">
-                                      Maximum MACs
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      max="128"
-                                      value={iface.portSecurity.maxMacs}
-                                      onChange={(e) => {
-                                        const newIfaces = { ...device.config.interfaces };
-                                        newIfaces[portName] = {
-                                          ...iface,
-                                          portSecurity: {
-                                            ...iface.portSecurity!,
-                                            maxMacs: parseInt(e.target.value, 10) || 1,
-                                          },
-                                        };
-                                        onUpdateDeviceConfig(device.id, {
-                                          ...device.config,
-                                          interfaces: newIfaces,
-                                        });
-                                      }}
-                                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-slate-400 block mb-0.5">
-                                      Violation Action
-                                    </label>
-                                    <select
-                                      value={iface.portSecurity.violation}
-                                      onChange={(e) => {
-                                        const newIfaces = { ...device.config.interfaces };
-                                        newIfaces[portName] = {
-                                          ...iface,
-                                          portSecurity: {
-                                            ...iface.portSecurity!,
-                                            violation: e.target.value as any,
-                                          },
-                                        };
-                                        onUpdateDeviceConfig(device.id, {
-                                          ...device.config,
-                                          interfaces: newIfaces,
-                                        });
-                                      }}
-                                      className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                                    >
-                                      <option value="shutdown">Shutdown (err-disable)</option>
-                                      <option value="restrict">Restrict (drop & count)</option>
-                                      <option value="protect">Protect (silent drop)</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          <DeviceConfigTab
+            device={device}
+            onUpdateDeviceConfig={onUpdateDeviceConfig}
+          />
         )}
 
         {/* TAB 3: END-DEVICE DESKTOP TOOLS (PC/Laptop) */}
         {activeTab === 'desktop' && (
-          <div className="flex-1 flex flex-col p-4 bg-slate-950 text-slate-200">
-            {/* Desktop Tool Switcher */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setDesktopTool('ip')}
-                className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                  desktopTool === 'ip'
-                    ? 'bg-sky-500/20 border-sky-400 text-sky-300'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                IP Configuration
-              </button>
-              <button
-                onClick={() => setDesktopTool('terminal')}
-                className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                  desktopTool === 'terminal'
-                    ? 'bg-sky-500/20 border-sky-400 text-sky-300'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Terminal className="w-4 h-4" />
-                Command Prompt
-              </button>
-              <button
-                onClick={() => setDesktopTool('browser')}
-                className={`flex-1 p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                  desktopTool === 'browser'
-                    ? 'bg-sky-500/20 border-sky-400 text-sky-300'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Globe className="w-4 h-4" />
-                Web Browser
-              </button>
-            </div>
-
-            {/* Desktop Tool 1: IP Configuration */}
-            {desktopTool === 'ip' && (
-              <div className="flex-1 bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex items-center gap-6 pb-3 border-b border-slate-800">
-                  <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="dhcpToggle"
-                      checked={!device.config.isDhcpClient}
-                      onChange={() =>
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          isDhcpClient: false,
-                        })
-                      }
-                      className="text-sky-500 bg-slate-950"
-                    />
-                    Static IPv4
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                    <input
-                      type="radio"
-                      name="dhcpToggle"
-                      checked={!!device.config.isDhcpClient}
-                      onChange={() => {
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          isDhcpClient: true,
-                        });
-                        onRunDhcpSim(device.id);
-                      }}
-                      className="text-sky-500 bg-slate-950"
-                    />
-                    DHCP Client (Dynamic)
-                  </label>
-                </div>
-
-                <div className="space-y-3">
-                  {(() => {
-                    const primaryName = Object.keys(device.config.interfaces)[0] || 'Fa0/0';
-                    const primaryIface = device.config.interfaces[primaryName] || {
-                      name: primaryName,
-                      mac: '00:1c:b1:00:00:01',
-                      status: 'up',
-                      speed: 100,
-                    };
-                    return (
-                      <>
-                        <div className="text-[11px] text-slate-400 font-mono flex items-center justify-between pb-1">
-                          <span>Active Interface: <strong className="text-sky-400">{primaryName}</strong></span>
-                          <span>MAC: <strong className="text-slate-300">{primaryIface.mac}</strong></span>
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-1">
-                            IPv4 Address
-                          </label>
-                          <input
-                            type="text"
-                            disabled={!!device.config.isDhcpClient}
-                            value={primaryIface.ip || ''}
-                            onChange={(e) => {
-                              const ifaces = { ...device.config.interfaces };
-                              ifaces[primaryName] = {
-                                ...primaryIface,
-                                ip: e.target.value,
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: ifaces,
-                              });
-                            }}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
-                            placeholder="192.168.1.10"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-1">
-                            Subnet Mask
-                          </label>
-                          <input
-                            type="text"
-                            disabled={!!device.config.isDhcpClient}
-                            value={primaryIface.mask || ''}
-                            onChange={(e) => {
-                              const ifaces = { ...device.config.interfaces };
-                              ifaces[primaryName] = {
-                                ...primaryIface,
-                                mask: e.target.value,
-                              };
-                              onUpdateDeviceConfig(device.id, {
-                                ...device.config,
-                                interfaces: ifaces,
-                              });
-                            }}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
-                            placeholder="255.255.255.0"
-                          />
-                        </div>
-                      </>
-                    );
-                  })()}
-                  <div>
-                    <label className="text-xs text-slate-400 block mb-1">
-                      Default Gateway
-                    </label>
-                    <input
-                      type="text"
-                      disabled={!!device.config.isDhcpClient}
-                      value={device.config.defaultGateway || ''}
-                      onChange={(e) =>
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          defaultGateway: e.target.value,
-                        })
-                      }
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
-                      placeholder="192.168.1.1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-400 block mb-1">
-                      DNS Server
-                    </label>
-                    <input
-                      type="text"
-                      disabled={!!device.config.isDhcpClient}
-                      value={device.config.dnsServer || ''}
-                      onChange={(e) =>
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          dnsServer: e.target.value,
-                        })
-                      }
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200"
-                      placeholder="8.8.8.8"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Desktop Tool 2: Command Prompt */}
-            {desktopTool === 'terminal' && (
-              <div className="flex-1 flex flex-col bg-black p-3 rounded-xl border border-slate-800 font-mono text-xs overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-0.5 custom-scrollbar pr-1 text-slate-300">
-                  {cmdOutput.map((l, i) => (
-                    <div key={i}>{l}</div>
-                  ))}
-                </div>
-                <form onSubmit={handleCmdSubmit} className="flex items-center pt-2 border-t border-slate-800 mt-2">
-                  <span className="text-emerald-400 mr-2">C:\&gt;</span>
-                  <input
-                    type="text"
-                    value={cmdInput}
-                    onChange={(e) => setCmdInput(e.target.value)}
-                    placeholder="type 'ping 192.168.1.1' or 'ipconfig'"
-                    className="flex-1 bg-transparent text-white outline-none font-mono text-xs"
-                    autoFocus
-                  />
-                </form>
-              </div>
-            )}
-
-            {/* Desktop Tool 3: Web Browser */}
-            {desktopTool === 'browser' && (
-              <div className="flex-1 flex flex-col bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-                {/* Browser URL Bar */}
-                <div className="p-2 bg-slate-950 flex items-center gap-2 border-b border-slate-800">
-                  <span className="text-xs font-bold text-slate-400">URL:</span>
-                  <input
-                    type="text"
-                    value={browserUrl}
-                    onChange={(e) => setBrowserUrl(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                  />
-                  <button
-                    onClick={handleBrowserNavigate}
-                    className="px-3 py-1 bg-sky-500 hover:bg-sky-600 text-white rounded text-xs font-bold cursor-pointer"
-                  >
-                    Go
-                  </button>
-                </div>
-                <div className="flex-1 p-4 overflow-y-auto bg-slate-950">
-                  {browserView?.kind === 'page' && (
-                    <div className="p-6 bg-slate-900 text-slate-100 rounded-lg border border-slate-800">
-                      <div className="text-xl font-bold text-sky-400 mb-2">{browserView.title}</div>
-                      <p className="text-sm text-slate-300 leading-relaxed">{browserView.body}</p>
-                      <div className="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
-                        Served by WireCraft Enterprise Web Engine (HTTP/1.1 200 OK)
-                      </div>
-                    </div>
-                  )}
-                  {browserView?.kind === 'error' && (
-                    <div className="p-6 bg-slate-900 text-slate-300 rounded-lg border border-slate-800 text-center">
-                      <div className="text-lg font-bold text-rose-400 mb-1">404 Not Found</div>
-                      <p className="text-xs text-slate-400">Unable to establish connection to {browserView.url}. Server offline or host unreachable.</p>
-                    </div>
-                  )}
-                  {!browserView && (
-                    <div className="text-center py-12 text-slate-500 text-xs">
-                      Enter server URL or domain (e.g. 192.168.1.10) and click Go.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          <DesktopAppsTab
+            device={device}
+            allDevices={allDevices}
+            onUpdateDeviceConfig={onUpdateDeviceConfig}
+            onRunPingSim={onRunPingSim}
+            onRunDhcpSim={onRunDhcpSim}
+          />
         )}
 
         {/* TAB 4: SERVER SERVICES (DHCP / DNS / HTTP) */}
-        {activeTab === 'services' && device.config.services && (
-          <div className="flex-1 p-4 overflow-y-auto space-y-4 text-slate-200 custom-scrollbar">
-            {/* DHCP Service */}
-            {device.config.services.dhcp && (
-              <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    DHCP Service Configuration
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={device.config.services.dhcp.enabled}
-                    onChange={(e) => {
-                      const s = { ...device.config.services };
-                      if (s.dhcp) s.dhcp.enabled = e.target.checked;
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        services: s,
-                      });
-                    }}
-                    className="w-4 h-4 rounded text-sky-500 bg-slate-950"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">
-                      Pool Name
-                    </label>
-                    <input
-                      type="text"
-                      value={device.config.services.dhcp.poolName}
-                      onChange={(e) => {
-                        const s = { ...device.config.services };
-                        if (s.dhcp) s.dhcp.poolName = e.target.value;
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          services: s,
-                        });
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">
-                      Start IP Address
-                    </label>
-                    <input
-                      type="text"
-                      value={device.config.services.dhcp.startIp}
-                      onChange={(e) => {
-                        const s = { ...device.config.services };
-                        if (s.dhcp) s.dhcp.startIp = e.target.value;
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          services: s,
-                        });
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">
-                      Subnet Mask
-                    </label>
-                    <input
-                      type="text"
-                      value={device.config.services.dhcp.mask}
-                      onChange={(e) => {
-                        const s = { ...device.config.services };
-                        if (s.dhcp) s.dhcp.mask = e.target.value;
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          services: s,
-                        });
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">
-                      Default Gateway
-                    </label>
-                    <input
-                      type="text"
-                      value={device.config.services.dhcp.defaultGateway}
-                      onChange={(e) => {
-                        const s = { ...device.config.services };
-                        if (s.dhcp) s.dhcp.defaultGateway = e.target.value;
-                        onUpdateDeviceConfig(device.id, {
-                          ...device.config,
-                          services: s,
-                        });
-                      }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* DNS Server Service */}
-            {device.config.services.dns && (
-              <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    DNS Server Service
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={device.config.services.dns.enabled}
-                    onChange={(e) => {
-                      const s = { ...device.config.services };
-                      if (s.dns) s.dns.enabled = e.target.checked;
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        services: s,
-                      });
-                    }}
-                    className="w-4 h-4 rounded text-sky-500 bg-slate-950"
-                  />
-                </div>
-
-                {/* Resource Records List */}
-                <div className="space-y-2">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Resource Records (A / CNAME)
-                  </div>
-                  <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-950">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-slate-900/60 text-slate-400 text-[10px] uppercase">
-                        <tr>
-                          <th className="px-3 py-1.5">Domain Name</th>
-                          <th className="px-3 py-1.5">Type</th>
-                          <th className="px-3 py-1.5">IP Address</th>
-                          <th className="px-2 py-1.5 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {device.config.services.dns.records?.map((rec, idx) => (
-                          <tr key={idx} className="hover:bg-slate-900/30">
-                            <td className="px-3 py-1 text-sky-400 font-semibold">{rec.domain}</td>
-                            <td className="px-3 py-1 text-slate-400">A Record</td>
-                            <td className="px-3 py-1 text-emerald-400">{rec.ip}</td>
-                            <td className="px-2 py-1 text-right">
-                              <button
-                                onClick={() => {
-                                  const s = { ...device.config.services };
-                                  if (s.dns) {
-                                    s.dns.records = s.dns.records.filter((_, i) => i !== idx);
-                                    onUpdateDeviceConfig(device.id, { ...device.config, services: s });
-                                  }
-                                }}
-                                className="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
-                                title="Delete Record"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {(!device.config.services.dns.records || device.config.services.dns.records.length === 0) && (
-                          <tr>
-                            <td colSpan={4} className="px-3 py-2 text-slate-500 text-center italic">
-                              No DNS records configured.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Add New DNS Record Form */}
-                  <div className="grid grid-cols-12 gap-2 pt-2 items-end">
-                    <div className="col-span-5">
-                      <label className="text-[10px] text-slate-400 block mb-0.5">Domain</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. wirecraft.local"
-                        value={newDnsDomain}
-                        onChange={(e) => setNewDnsDomain(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                      />
-                    </div>
-                    <div className="col-span-5">
-                      <label className="text-[10px] text-slate-400 block mb-0.5">Address</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 192.168.1.10"
-                        value={newDnsIp}
-                        onChange={(e) => setNewDnsIp(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-200"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <button
-                        onClick={() => {
-                          if (!newDnsDomain.trim() || !newDnsIp.trim()) return;
-                          const s = { ...device.config.services };
-                          if (s.dns) {
-                            if (!s.dns.records) s.dns.records = [];
-                            s.dns.records.push({ domain: newDnsDomain.trim(), ip: newDnsIp.trim() });
-                            onUpdateDeviceConfig(device.id, { ...device.config, services: s });
-                            setNewDnsDomain('');
-                            setNewDnsIp('');
-                          }
-                        }}
-                        className="w-full bg-sky-600 hover:bg-sky-500 text-white rounded px-2 py-1 text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* HTTP Web Service */}
-            {device.config.services.http && (
-              <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    HTTP Web Server
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={device.config.services.http.enabled}
-                    onChange={(e) => {
-                      const s = { ...device.config.services };
-                      if (s.http) s.http.enabled = e.target.checked;
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        services: s,
-                      });
-                    }}
-                    className="w-4 h-4 rounded text-sky-500 bg-slate-950"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">
-                    Portal Title
-                  </label>
-                  <input
-                    type="text"
-                    value={device.config.services.http.title}
-                    onChange={(e) => {
-                      const s = { ...device.config.services };
-                      if (s.http) s.http.title = e.target.value;
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        services: s,
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">
-                    Page Body Content
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={device.config.services.http.body}
-                    onChange={(e) => {
-                      const s = { ...device.config.services };
-                      if (s.http) s.http.body = e.target.value;
-                      onUpdateDeviceConfig(device.id, {
-                        ...device.config,
-                        services: s,
-                      });
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs font-mono text-slate-200"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+        {activeTab === 'services' && (
+          <ServicesTab
+            device={device}
+            onUpdateDeviceConfig={onUpdateDeviceConfig}
+          />
         )}
 
         {/* TAB 5: CISCO STACKWISE SWITCH STACKING */}
