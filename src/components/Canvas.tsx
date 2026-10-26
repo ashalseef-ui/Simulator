@@ -6,6 +6,7 @@ import {
   StpTopologyState,
   SimulationStep,
 } from '../types/network';
+import { LivingNetworkState } from '../engine/livingNetworkEngine';
 import { DEVICE_SPECS, validateCabling } from '../engine/deviceSpecs';
 import { areSameSubnet } from '../utils/ipUtils';
 import {
@@ -28,6 +29,7 @@ interface CanvasProps {
   cableSource: { deviceId: string; port: string } | null;
   stpState: StpTopologyState;
   currentSimStep: SimulationStep | null;
+  livingNetworkState?: LivingNetworkState;
   onSelectDevice: (id: string | null) => void;
   onSelectLink: (id: string | null) => void;
   onMoveDevice: (id: string, x: number, y: number) => void;
@@ -48,6 +50,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   cableSource,
   stpState,
   currentSimStep,
+  livingNetworkState,
   onSelectDevice,
   onSelectLink,
   onMoveDevice,
@@ -429,6 +432,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           stpState={stpState}
           currentSimStep={currentSimStep}
           rubberBand={rubberBand}
+          livingNetworkState={livingNetworkState}
           onSelectLink={onSelectLink}
           onSelectDevice={onSelectDevice}
         />

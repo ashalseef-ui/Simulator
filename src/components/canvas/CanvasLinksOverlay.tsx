@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Device, Link, SimulationStep, StpTopologyState } from '../../types/network';
 import { validateCabling } from '../../engine/deviceSpecs';
 import { areSameSubnet } from '../../utils/ipUtils';
+import { LivingNetworkState } from '../../engine/livingNetworkEngine';
 
 interface CanvasLinksOverlayProps {
   devices: Device[];
@@ -10,6 +11,7 @@ interface CanvasLinksOverlayProps {
   stpState: StpTopologyState;
   currentSimStep: SimulationStep | null;
   rubberBand: { x1: number; y1: number; x2: number; y2: number } | null;
+  livingNetworkState?: LivingNetworkState;
   onSelectLink: (linkId: string) => void;
   onSelectDevice: (deviceId: string | null) => void;
 }
@@ -21,6 +23,7 @@ export const CanvasLinksOverlay: React.FC<CanvasLinksOverlayProps> = ({
   stpState,
   currentSimStep,
   rubberBand,
+  livingNetworkState,
   onSelectLink,
   onSelectDevice,
 }) => {
@@ -102,9 +105,19 @@ export const CanvasLinksOverlay: React.FC<CanvasLinksOverlayProps> = ({
       let strokeColor = '#64748b'; // default slate
       let strokeDash = 'none';
 
+      const netMetric = livingNetworkState?.enabled ? livingNetworkState.linkMetrics[link.id] : undefined;
+
       if (isLinkDown) {
         strokeColor = '#ef4444'; // Red for Down / Broken Connection
         strokeDash = '6,4'; // Dashed line to emphasize outage
+      } else if (netMetric) {
+        if (netMetric.status === 'congested') {
+          strokeColor = '#ef4444'; // Red heatmap glow for congestion
+        } else if (netMetric.status === 'high_load') {
+          strokeColor = '#f59e0b'; // Amber heatmap for high utilization
+        } else {
+          strokeColor = '#10b981'; // Emerald heatmap for healthy flow
+        }
       } else if (isMismatch || isIpMismatch) {
         strokeColor = '#f59e0b'; // Amber for Cable or IP Mismatch
         strokeDash = '6,3';
@@ -144,6 +157,10 @@ export const CanvasLinksOverlay: React.FC<CanvasLinksOverlayProps> = ({
         ((currentSimStep.fromDeviceId === devA.id && currentSimStep.toDeviceId === devB.id) ||
           (currentSimStep.fromDeviceId === devB.id && currentSimStep.toDeviceId === devA.id));
 
+      const linkParticles = livingNetworkState?.enabled
+        ? livingNetworkState.activeParticles.filter((p) => p.linkId === link.id)
+        : [];
+
       return {
         link,
         devA,
@@ -169,11 +186,13 @@ export const CanvasLinksOverlay: React.FC<CanvasLinksOverlayProps> = ({
         isStpBlocked,
         isMismatch,
         isSimulatingOnThisLink,
+        netMetric,
+        linkParticles,
         midX: (cAx + cBx) / 2,
         midY: (cAy + cBy) / 2,
       };
     });
-  }, [devices, links, selectedLinkId, stpState, currentSimStep]);
+  }, [devices, links, selectedLinkId, stpState, currentSimStep, livingNetworkState]);
 
   return (
     <>
@@ -371,6 +390,78 @@ export const CanvasLinksOverlay: React.FC<CanvasLinksOverlayProps> = ({
                 </text>
               </g>
             )}
+
+            {/* 5. Living Network Bandwidth Heatmap Badge */}
+            {!rl.isLinkDown && livingNetworkState?.enabled && rl.netMetric && (
+              <g transform={`translate(${rl.midX}, ${rl.midY + (rl.isStpBlocked || rl.isMismatch || rl.isIpMismatch ? 18 : 0)})`}>
+                <rect
+                  x={-48}
+                  y={-10}
+                  width={96}
+                  height={20}
+                  rx={10}
+                  fill={
+                    rl.netMetric.status === 'congested'
+                      ? '#450a0a'
+                      : rl.netMetric.status === 'high_load'
+                      ? '#451a03'
+                      : '#022c22'
+                  }
+                  stroke={
+                    rl.netMetric.status === 'congested'
+                      ? '#ef4444'
+                      : rl.netMetric.status === 'high_load'
+                      ? '#f59e0b'
+                      : '#10b981'
+                  }
+                  strokeWidth={1.5}
+                  className={rl.netMetric.status === 'congested' ? 'animate-pulse' : ''}
+                />
+                <text
+                  x={0}
+                  y={3}
+                  fill={
+                    rl.netMetric.status === 'congested'
+                      ? '#fca5a5'
+                      : rl.netMetric.status === 'high_load'
+                      ? '#fde047'
+                      : '#a7f3d0'
+                  }
+                  fontSize={8.5}
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  className="select-none font-mono"
+                >
+                  {rl.netMetric.mbps} Mbps ({rl.netMetric.utilizationPercent}%)
+                </text>
+              </g>
+            )}
+
+            {/* Living Network Traffic Particles */}
+            {!rl.isLinkDown && livingNetworkState?.enabled && rl.linkParticles.map((p) => {
+              const pX1 = p.direction === 'forward' ? rl.lineX1 : rl.lineX2;
+              const pY1 = p.direction === 'forward' ? rl.lineY1 : rl.lineY2;
+              const pX2 = p.direction === 'forward' ? rl.lineX2 : rl.lineX1;
+              const pY2 = p.direction === 'forward' ? rl.lineY2 : rl.lineY1;
+              const dur = p.type === 'video' ? '0.7s' : p.type === 'voip' ? '0.9s' : '1.3s';
+
+              return (
+                <circle
+                  key={p.id}
+                  r={p.type === 'video' ? 5 : 4}
+                  fill={p.color}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                  filter="url(#glow)"
+                >
+                  <animateMotion
+                    path={`M ${pX1} ${pY1} L ${pX2} ${pY2}`}
+                    dur={dur}
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              );
+            })}
 
             {/* Animated Simulation Packet Travelling on Wire */}
             {rl.isSimulatingOnThisLink &&

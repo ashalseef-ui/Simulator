@@ -39,6 +39,8 @@ import { VirtualClockTelemetryBar } from './components/VirtualClockTelemetryBar'
 import { CommandReferenceModal } from './components/CommandReferenceModal';
 import { SpeedrunModal } from './components/SpeedrunModal';
 import { NetGremlinWidget } from './components/NetGremlinWidget';
+import { LivingNetworkPanel } from './components/LivingNetworkPanel';
+import { livingNetworkEngine, LivingNetworkState, TrafficType } from './engine/livingNetworkEngine';
 import { audioEngine } from './utils/audioEffects';
 import { workerBridge } from './engine/workerBridge';
 import { IncidentScenario } from './data/incidentScenarios';
@@ -129,7 +131,48 @@ export default function App() {
   const [showCommandsModal, setShowCommandsModal] = useState<boolean>(false);
   const [showSpeedrunModal, setShowSpeedrunModal] = useState<boolean>(false);
   const [showGremlinWidget, setShowGremlinWidget] = useState<boolean>(false);
+  const [showLivingNetworkPanel, setShowLivingNetworkPanel] = useState<boolean>(false);
+  const [livingNetState, setLivingNetState] = useState<LivingNetworkState>(() => livingNetworkEngine.getState());
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(() => audioEngine.getMuted());
+
+  // Living Network periodic simulation tick loop
+  useEffect(() => {
+    if (!livingNetState.enabled) return;
+
+    const timer = setInterval(() => {
+      const updated = livingNetworkEngine.updateSimulation(
+        devices,
+        links,
+        (action, targetDevId, param) => {
+          if (action === 'shutdown_iface' && param?.interfaceName) {
+            setDevices((prevDevs) =>
+              prevDevs.map((d) => {
+                if (d.id !== targetDevId) return d;
+                const iface = d.config.interfaces[param.interfaceName];
+                if (!iface) return d;
+                return {
+                  ...d,
+                  config: {
+                    ...d.config,
+                    interfaces: {
+                      ...d.config.interfaces,
+                      [param.interfaceName]: { ...iface, status: 'down' as const },
+                    },
+                  },
+                };
+              })
+            );
+            audioEngine.playAlarmChime();
+          } else if (action === 'set_mtu' || action === 'flap_ospf') {
+            audioEngine.playAlarmChime();
+          }
+        }
+      );
+      setLivingNetState({ ...updated });
+    }, 800);
+
+    return () => clearInterval(timer);
+  }, [livingNetState.enabled, devices, links]);
 
   // Active Incident Scenario
   const [activeIncident, setActiveIncident] = useState<IncidentScenario | null>(null);
@@ -910,6 +953,8 @@ export default function App() {
         onOpenCommands={() => setShowCommandsModal(true)}
         onOpenSpeedrun={() => setShowSpeedrunModal(true)}
         onOpenGremlin={() => setShowGremlinWidget((prev) => !prev)}
+        onOpenLivingNetwork={() => setShowLivingNetworkPanel((prev) => !prev)}
+        isLivingNetworkActive={livingNetState.enabled}
         isMuted={isAudioMuted}
         onToggleMute={() => {
           const next = audioEngine.toggleMute();
@@ -972,7 +1017,7 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
+            <div className="flex items-center gap-1 pl-2 border-l border-white/10">
               {!chaosIsCompleted && (
                 <button
                   onClick={handleVerifyChaosFix}
@@ -1018,6 +1063,7 @@ export default function App() {
           cableSource={cableSource}
           stpState={stpState}
           currentSimStep={currentSimStep}
+          livingNetworkState={livingNetState}
           onSelectDevice={setSelectedDeviceId}
           onSelectLink={setSelectedLinkId}
           onMoveDevice={handleMoveDevice}
@@ -1255,6 +1301,58 @@ export default function App() {
         links={links}
         onUpdateDeviceConfig={handleUpdateDeviceConfig}
         onToggleLinkState={handleToggleLinkState}
+      />
+
+      {/* Living Network Traffic & Chaos Panel */}
+      <LivingNetworkPanel
+        isOpen={showLivingNetworkPanel}
+        onClose={() => setShowLivingNetworkPanel(false)}
+        state={livingNetState}
+        onToggleEnabled={(enabled) => {
+          livingNetworkEngine.setEnabled(enabled);
+          setLivingNetState({ ...livingNetworkEngine.getState() });
+        }}
+        onToggleProfile={(type, active) => {
+          livingNetworkEngine.setTrafficProfile(type, active);
+          setLivingNetState({ ...livingNetworkEngine.getState() });
+        }}
+        onChangeChaosLevel={(level) => {
+          livingNetworkEngine.setChaosLevel(level);
+          setLivingNetState({ ...livingNetworkEngine.getState() });
+        }}
+        onManualChaosStrike={() => {
+          livingNetworkEngine.triggerChaosEvent(
+            devices,
+            links,
+            (action, targetDevId, param) => {
+              if (action === 'shutdown_iface' && param?.interfaceName) {
+                setDevices((prevDevs) =>
+                  prevDevs.map((d) => {
+                    if (d.id !== targetDevId) return d;
+                    const iface = d.config.interfaces[param.interfaceName];
+                    if (!iface) return d;
+                    return {
+                      ...d,
+                      config: {
+                        ...d.config,
+                        interfaces: {
+                          ...d.config.interfaces,
+                          [param.interfaceName]: { ...iface, status: 'down' as const },
+                        },
+                      },
+                    };
+                  })
+                );
+                audioEngine.playAlarmChime();
+              }
+            }
+          );
+          setLivingNetState({ ...livingNetworkEngine.getState() });
+        }}
+        onClearChaosFaults={() => {
+          livingNetworkEngine.clearChaosFaults();
+          setLivingNetState({ ...livingNetworkEngine.getState() });
+        }}
       />
 
       {errorMessage && (

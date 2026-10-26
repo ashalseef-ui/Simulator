@@ -67,6 +67,8 @@ interface TopBarProps {
   onOpenMascot?: () => void;
   onOpenChaos?: () => void;
   onOpenCommands?: () => void;
+  onOpenLivingNetwork?: () => void;
+  isLivingNetworkActive?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -103,6 +105,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenMascot,
   onOpenChaos,
   onOpenCommands,
+  onOpenLivingNetwork,
+  isLivingNetworkActive = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeDropdown, setActiveDropdown] = useState<'file' | 'tools' | 'ai' | null>(null);
@@ -302,6 +306,24 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
             )}
           </button>
+
+          {/* Living Network Generator & Heatmap */}
+          {onOpenLivingNetwork && (
+            <button
+              onClick={onOpenLivingNetwork}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isLivingNetworkActive
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span className="hidden lg:inline">Living Network</span>
+              {isLivingNetworkActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              )}
+            </button>
+          )}
 
           {/* Chaos Battle */}
           {onOpenChaos && (
